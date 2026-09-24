@@ -22,6 +22,7 @@ import time
 import cv2
 import yaml
 from flask import Flask, Response, jsonify, request
+from flask_cors import CORS
 
 from detector.config import CameraConfig, SpaceRegion
 from detector.pipeline import DetectionPipeline
@@ -488,6 +489,9 @@ class LiveFeed:
 
 def create_app(config: CameraConfig, read_plates: bool = True, spaces_file: str = "spaces.yaml") -> Flask:
     app = Flask(__name__)
+    # The dashboard (a separate Next.js dev server, different origin) needs
+    # to call these APIs directly from the browser.
+    CORS(app, resources={r"/api/*": {"origins": "*"}, r"/stream": {"origins": "*"}, r"/snapshot": {"origins": "*"}})
     feed = LiveFeed(config, read_plates=read_plates)
     feed.start()
 
@@ -570,6 +574,14 @@ def create_app(config: CameraConfig, read_plates: bool = True, spaces_file: str 
         except (KeyError, ValueError) as e:
             return jsonify({"ok": False, "error": str(e)}), 400
         return jsonify({"ok": True})
+
+    @app.route("/api/spaces/status")
+    def get_spaces_status():
+        """Structured per-space state (zone, state, elapsed) for a dashboard
+        — this previously only existed baked into the annotated video's
+        pixels. Includes every configured space, not just occupied ones, so
+        a dashboard can render a full grid."""
+        return jsonify({"spaces": feed.pipeline.last_space_status})
 
     def _toggles_state():
         return {

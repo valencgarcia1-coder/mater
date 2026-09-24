@@ -104,6 +104,7 @@ class DetectionPipeline:
         self.plate_reader = PlateReader() if read_plates else None
         self.best_plates: dict[int, PlateRead] = {}
         self._cached_spaces = None  # built lazily once we know frame size
+        self.last_space_status: dict[str, dict] = {}  # populated after the first processed frame
         self.set_spaces(config.spaces)
         # Display-only toggles. Detection/tracking/timers/occupancy keep
         # running underneath either way — turning off the vehicle overlay
@@ -218,6 +219,17 @@ class DetectionPipeline:
             zones = zone_by_label(self._cached_spaces)
             occupied_zones = {label: zones[label] for label, occ in occupancy.items() if occ}
             status_by_label = self.parking_timers.update(occupied_zones)
+            # Exposed for anything outside the annotated video frame that
+            # needs structured space state (e.g. a dashboard's API) — this
+            # data previously only existed baked into pixels.
+            self.last_space_status = {
+                space.label: {
+                    "zone": space.zone,
+                    "state": status_by_label[space.label].state if space.label in status_by_label else "empty",
+                    "elapsed": status_by_label[space.label].elapsed if space.label in status_by_label else None,
+                }
+                for space in self._cached_spaces
+            }
             if self.show_spaces:
                 annotated = draw_spaces(annotated, self._cached_spaces, occupancy, status_by_label)
         if self.show_vehicles:
