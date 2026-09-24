@@ -23,6 +23,7 @@ import supervision as sv
 from ultralytics import YOLO
 
 from detector.config import VEHICLE_CLASSES, CameraConfig, SpaceRegion
+from detector.parking_timers import ParkingTimers, format_duration
 from detector.plate import PlateRead, PlateReader
 from detector.spaces import build_space_masks, draw_spaces
 from detector.video_source import frames
@@ -31,8 +32,9 @@ log = logging.getLogger(__name__)
 
 
 class DetectionPipeline:
-    def __init__(self, config: CameraConfig, read_plates: bool = True) -> None:
+    def __init__(self, config: CameraConfig, read_plates: bool = True, timers_state_path: str = "parking_timers.json") -> None:
         self.config = config
+        self.parking_timers = ParkingTimers(state_path=timers_state_path)
         self.model = YOLO(config.model)
         self.tracker = sv.ByteTrack(
             # lost_track_buffer is in units of *our* processed frames (frame_rate
@@ -89,14 +91,25 @@ class DetectionPipeline:
         detections = sv.Detections.from_ultralytics(result)
         detections = self.tracker.update_with_detections(detections)
 
+        centroids = [(float((x1 + x2) / 2), float((y1 + y2) / 2)) for x1, y1, x2, y2 in detections.xyxy]
+        parked_seconds = self.parking_timers.update(centroids)
+
         labels = []
-        for track_id, class_id, box in zip(detections.tracker_id, detections.class_id, detections.xyxy):
+        for track_id, class_id, box, elapsed in zip(
+            detections.tracker_id, detections.class_id, detections.xyxy, parked_seconds
+        ):
             class_name = VEHICLE_CLASSES.get(class_id, "vehicle")
             # "car" is the overwhelming majority — naming it on every box is
             # pure clutter, but a truck/bus/motorcycle is worth calling out.
             label = f"#{track_id}" if class_name == "car" else f"#{track_id} {class_name}"
             if self.plate_reader is not None:
                 label += self._update_and_format_plate(track_id, frame, box)
+            # None means "not yet confirmed stationary" — still arriving/passing
+            # through, not parked, so no timer shown yet. (cv2's Hershey font
+            # can't render unicode symbols, so this is plain ASCII text, not
+            # a clock icon.)
+            if elapsed is not None:
+                label += f" [{format_duration(elapsed)}]"
             labels.append(label)
 
         annotated = frame.copy()
