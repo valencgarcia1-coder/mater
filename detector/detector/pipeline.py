@@ -28,6 +28,7 @@ from detector.config import VEHICLE_CLASSES, CameraConfig, SpaceRegion
 from detector.parking_timers import ParkingTimers
 from detector.plate import PlateRead, PlateReader
 from detector.spaces import build_space_masks, compute_occupancy, draw_spaces
+from detector.velocity import VelocityTracker
 from detector.video_source import frames
 
 log = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ class DetectionPipeline:
     def __init__(self, config: CameraConfig, read_plates: bool = True, timers_state_path: str = "parking_timers.json") -> None:
         self.config = config
         self.parking_timers = ParkingTimers(state_path=timers_state_path)
+        self.velocity_tracker = VelocityTracker()
         self.model = YOLO(config.model)
         self.tracker = sv.ByteTrack(
             # This is ByteTrack's actual point, and we were bypassing it: a
@@ -138,14 +140,33 @@ class DetectionPipeline:
 
         annotated = frame.copy()
         if self._cached_spaces:
+            # Only a vehicle confirmed stationary (displacement over a
+            # trailing window, not frame-to-frame position equality) counts
+            # toward space occupancy for the parked-timer's purposes. Without
+            # this, a car still slowly repositioning — backing in, a
+            # three-point turn — could hold a space's occupancy check for
+            # the full confirm window and get marked PARKED before it's
+            # actually settled; "occupied continuously for N seconds" alone
+            # only asks whether something is there, never whether it's
+            # still moving.
+            ground_points = [(float((x1 + x2) / 2), float(y2)) for x1, y1, x2, y2 in detections.xyxy]
+            stationary = [
+                self.velocity_tracker.is_stationary(int(tid), pt)
+                for tid, pt in zip(detections.tracker_id, ground_points)
+            ]
+            self.velocity_tracker.forget({int(tid) for tid in detections.tracker_id})
+
             # Occupancy and the parking timer always run, regardless of the
             # show_spaces display toggle — a space's clock shouldn't pause
             # just because you're not currently looking at the overlay.
             # Prefer the real segmentation masks over boxes for occupancy —
             # a rectangular box is looser than the vehicle and can spill into
             # a neighboring space enough to false-positive as occupied there.
-            masks = list(detections.mask) if detections.mask is not None else None
-            occupancy = compute_occupancy(self._cached_spaces, [tuple(b) for b in detections.xyxy], masks=masks)
+            stationary_boxes = [tuple(b) for b, st in zip(detections.xyxy, stationary) if st]
+            stationary_masks = None
+            if detections.mask is not None:
+                stationary_masks = [m for m, st in zip(detections.mask, stationary) if st]
+            occupancy = compute_occupancy(self._cached_spaces, stationary_boxes, masks=stationary_masks)
             status_by_label = self.parking_timers.update({label for label, occ in occupancy.items() if occ})
             if self.show_spaces:
                 annotated = draw_spaces(annotated, self._cached_spaces, occupancy, status_by_label)
