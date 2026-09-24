@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Detector outputs — never commit video, snapshots, or model weights
+*.mp4
+*.avi
+*.mov
+*.mkv
+detector/*.pt
+detector/eval/clips/
+detector/eval/results/
+
+# Secrets
+.env
+*.env
+
+# OS
+.DS_Store

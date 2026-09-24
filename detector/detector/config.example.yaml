@@ -1,0 +1,19 @@
+# Example camera config. Copy per-camera and adjust.
+#
+# source: a local file path, an rtsp:// URL, or a YouTube URL (resolved via yt-dlp).
+source: "https://www.youtube.com/watch?v=4a-3iEM7bHk"  # Brighton Ski Resort lot livestream (PRD test source)
+
+fps: 5           # target processing frame rate
+confidence: 0.4  # drop detections below this
+model: "yolov8n.pt"  # pretrained COCO weights (nano, for CPU)
+
+# Rectangles to black out before detection, e.g. a burned-in timestamp overlay.
+# Coordinates are pixels in the source frame (x1,y1)-(x2,y2). Brighton's
+# timestamp sits top-left per the PRD; exact box needs tuning against a real
+# frame before relying on it.
+masks:
+  - { x1: 0, y1: 0, x2: 220, y2: 40 }
+
+# Populated starting in M2: counting lines and occupancy space polygons.
+lines: []
+spaces: []
