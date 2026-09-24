@@ -31,8 +31,18 @@ class PlateReader:
         if x2 <= x1 or y2 <= y1:
             return None
 
+        # Degenerate crops (very thin/small boxes, common at the frame edge)
+        # can make the ALPR's internal plate detector produce a zero-element
+        # dynamic shape, which its CoreML backend rejects — skip them rather
+        # than let every such box spam a caught-but-logged inference error.
+        if (x2 - x1) < 20 or (y2 - y1) < 20:
+            return None
+
         crop = frame[y1:y2, x1:x2]
-        results = self._alpr.predict(crop)
+        try:
+            results = self._alpr.predict(crop)
+        except Exception:
+            return None
         if not results:
             return None
 

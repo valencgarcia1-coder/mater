@@ -33,9 +33,28 @@ class DetectionPipeline:
     def __init__(self, config: CameraConfig, read_plates: bool = True) -> None:
         self.config = config
         self.model = YOLO(config.model)
-        self.tracker = sv.ByteTrack()
-        self.box_annotator = sv.BoxAnnotator()
-        self.label_annotator = sv.LabelAnnotator()
+        self.tracker = sv.ByteTrack(
+            # lost_track_buffer is in units of *our* processed frames (frame_rate
+            # stays at its default of 30, which keeps the tracker's internal
+            # frame_rate/30 scaling a no-op) — ~2 seconds of occlusion tolerance
+            # at our actual sampling rate, so a briefly-hidden car keeps its ID
+            # instead of coming back as a new one.
+            lost_track_buffer=max(5, round(config.fps * 2)),
+            # Require a detection to hold for 3 consecutive frames before it
+            # becomes a track, so a single spurious detection doesn't flicker
+            # a box into existence for one frame.
+            minimum_consecutive_frames=3,
+        )
+        # color_lookup=TRACK gives each track_id a distinct, stable color
+        # from the palette — otherwise every vehicle is class "car" and all
+        # boxes render identically, which is what made tracks illegible.
+        self.box_annotator = sv.BoxAnnotator(thickness=2, color_lookup=sv.ColorLookup.TRACK)
+        self.label_annotator = sv.LabelAnnotator(
+            color_lookup=sv.ColorLookup.TRACK,
+            text_scale=0.4,
+            text_padding=4,
+            smart_position=True,  # nudges labels apart when boxes cluster tightly
+        )
         self.plate_reader = PlateReader() if read_plates else None
         self.best_plates: dict[int, PlateRead] = {}
 
@@ -51,7 +70,10 @@ class DetectionPipeline:
 
         labels = []
         for track_id, class_id, box in zip(detections.tracker_id, detections.class_id, detections.xyxy):
-            label = f"#{track_id} {VEHICLE_CLASSES.get(class_id, 'vehicle')}"
+            class_name = VEHICLE_CLASSES.get(class_id, "vehicle")
+            # "car" is the overwhelming majority — naming it on every box is
+            # pure clutter, but a truck/bus/motorcycle is worth calling out.
+            label = f"#{track_id}" if class_name == "car" else f"#{track_id} {class_name}"
             if self.plate_reader is not None:
                 label += self._update_and_format_plate(track_id, frame, box)
             labels.append(label)
