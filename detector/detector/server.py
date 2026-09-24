@@ -130,7 +130,7 @@ EDITOR_HTML = """<!doctype html>
         ctx.closePath();
         ctx.stroke();
         ctx.fillStyle = '#8cf';
-        ctx.fillText(s.label, s.polygon[0][0] + 4, s.polygon[0][1] + 16);
+        ctx.fillText('P' + s.label, s.polygon[0][0] + 4, s.polygon[0][1] + 16);
       }
       if (current.length) {
         ctx.strokeStyle = '#fc6';
