@@ -49,7 +49,12 @@ class DetectionPipeline:
         # color_lookup=TRACK gives each track_id a distinct, stable color
         # from the palette — otherwise every vehicle is class "car" and all
         # boxes render identically, which is what made tracks illegible.
-        self.box_annotator = sv.BoxAnnotator(thickness=2, color_lookup=sv.ColorLookup.TRACK)
+        # PolygonAnnotator traces the segmentation mask's actual silhouette
+        # (roofline, mirrors, wheels) instead of a rectangle — a box can
+        # never truly outline a car since cars aren't rectangles. Requires a
+        # "-seg" model (config.model), which is the only difference; the
+        # rest of the pipeline (tracking, plates, spaces) is unchanged.
+        self.box_annotator = sv.PolygonAnnotator(thickness=2, color_lookup=sv.ColorLookup.TRACK)
         self.label_annotator = sv.LabelAnnotator(
             color_lookup=sv.ColorLookup.TRACK,
             text_scale=0.4,

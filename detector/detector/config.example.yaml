@@ -5,7 +5,7 @@ source: "https://www.youtube.com/watch?v=4a-3iEM7bHk"  # Brighton Ski Resort lot
 
 fps: 5              # target processing frame rate
 confidence: 0.3     # drop detections below this
-model: "yolov8s.pt" # pretrained COCO weights
+model: "yolov8s-seg.pt" # pretrained COCO instance-segmentation weights
 imgsz: 1280         # inference resolution — Brighton's frame is 1280x720 native;
                     # the default 640 downscales it and loses small/distant vehicles
 iou: 0.2            # NMS overlap threshold

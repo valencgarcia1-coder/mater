@@ -22,7 +22,7 @@ def main() -> None:
     parser.add_argument("--output", default="output.mp4", help="path to write the annotated video")
     parser.add_argument("--fps", type=int, default=5, help="target processing frame rate")
     parser.add_argument("--conf", type=float, default=0.3, help="detection confidence threshold")
-    parser.add_argument("--model", default="yolov8s.pt", help="Ultralytics YOLO weights")
+    parser.add_argument("--model", default="yolov8s-seg.pt", help="Ultralytics YOLO weights")
     parser.add_argument("--imgsz", type=int, default=1280, help="inference resolution")
     parser.add_argument("--iou", type=float, default=0.2, help="NMS overlap threshold")
     parser.add_argument("--duration", type=float, default=None, help="stop after N seconds (useful for streams)")

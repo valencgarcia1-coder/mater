@@ -325,7 +325,7 @@ def main() -> None:
     # needs class-agnostic NMS at a tighter IoU or the same vehicle gets
     # double-boxed under two different vehicle classes.
     parser.add_argument("--conf", type=float, default=0.3)
-    parser.add_argument("--model", default="yolov8s.pt")
+    parser.add_argument("--model", default="yolov8s-seg.pt")
     parser.add_argument("--imgsz", type=int, default=1280)
     parser.add_argument("--iou", type=float, default=0.2)
     parser.add_argument("--no-plates", action="store_true")
