@@ -14,6 +14,7 @@ import cv2
 import numpy as np
 
 from detector.config import SpaceRegion
+from detector.parking_timers import format_duration
 
 OCCUPIED_OVERLAP_THRESHOLD = 0.4  # FR5 default: >=40% of the space's area covered
 
@@ -97,17 +98,29 @@ def _dashed_polyline(frame: np.ndarray, polygon: np.ndarray, color: tuple, thick
             cv2.line(frame, tuple(start), tuple(end), color, thickness, cv2.LINE_AA)
 
 
-def draw_spaces(
-    frame: np.ndarray,
+def compute_occupancy(
     spaces: list[_CachedSpace],
     boxes: list[tuple],
     masks: list[np.ndarray] | None = None,
-) -> np.ndarray:
+) -> dict[str, bool]:
+    occupancy: dict[str, bool] = {}
     for space in spaces:
         if masks is not None:
-            occupied = any(is_occupied_by_mask(space, m) for m in masks)
+            occupancy[space.label] = any(is_occupied_by_mask(space, m) for m in masks)
         else:
-            occupied = any(is_occupied_by_box(space, box) for box in boxes)
+            occupancy[space.label] = any(is_occupied_by_box(space, box) for box in boxes)
+    return occupancy
+
+
+def draw_spaces(
+    frame: np.ndarray,
+    spaces: list[_CachedSpace],
+    occupancy: dict[str, bool],
+    elapsed_by_label: dict[str, float | None] | None = None,
+) -> np.ndarray:
+    elapsed_by_label = elapsed_by_label or {}
+    for space in spaces:
+        occupied = occupancy[space.label]
         color = occupied_color if occupied else empty_color
 
         overlay = frame.copy()
@@ -118,6 +131,9 @@ def draw_spaces(
         # "P" prefix (not "#") so a space is never mistaken for a vehicle
         # track label at a glance — both were rendering as bare "#N".
         text = f"P{space.label}"
+        elapsed = elapsed_by_label.get(space.label)
+        if elapsed is not None:
+            text += f" [{format_duration(elapsed)}]"
         origin = (int(space.bbox[0]) + 6, int(space.bbox[1]) + 22)
         (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
         cv2.rectangle(frame, (origin[0] - 4, origin[1] - th - 6), (origin[0] + tw + 4, origin[1] + 4), (0, 0, 0), -1)

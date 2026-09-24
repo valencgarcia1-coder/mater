@@ -25,9 +25,9 @@ import torch
 from ultralytics import YOLO
 
 from detector.config import VEHICLE_CLASSES, CameraConfig, SpaceRegion
-from detector.parking_timers import ParkingTimers, format_duration
+from detector.parking_timers import ParkingTimers
 from detector.plate import PlateRead, PlateReader
-from detector.spaces import build_space_masks, draw_spaces
+from detector.spaces import build_space_masks, compute_occupancy, draw_spaces
 from detector.video_source import frames
 
 log = logging.getLogger(__name__)
@@ -126,39 +126,29 @@ class DetectionPipeline:
         detections = sv.Detections.from_ultralytics(result)
         detections = self.tracker.update_with_detections(detections)
 
-        # Bottom-center of the box, not the geometric center: we care where
-        # the vehicle touches the ground, not the middle of its visible
-        # height. The roofline shifts more than the ground-contact edge does
-        # frame to frame (viewing angle, cargo boxes, mirrors, mask jitter),
-        # so this is a more stable anchor for "is this the same parked spot."
-        ground_points = [(float((x1 + x2) / 2), float(y2)) for x1, y1, x2, y2 in detections.xyxy]
-        parked_seconds = self.parking_timers.update(ground_points)
-
         labels = []
-        for track_id, class_id, box, elapsed in zip(
-            detections.tracker_id, detections.class_id, detections.xyxy, parked_seconds
-        ):
+        for track_id, class_id, box in zip(detections.tracker_id, detections.class_id, detections.xyxy):
             class_name = VEHICLE_CLASSES.get(class_id, "vehicle")
             # "car" is the overwhelming majority — naming it on every box is
             # pure clutter, but a truck/bus/motorcycle is worth calling out.
             label = f"#{track_id}" if class_name == "car" else f"#{track_id} {class_name}"
             if self.plate_reader is not None and self.read_plates_enabled:
                 label += self._update_and_format_plate(track_id, frame, box)
-            # None means "not yet confirmed stationary" — still arriving/passing
-            # through, not parked, so no timer shown yet. (cv2's Hershey font
-            # can't render unicode symbols, so this is plain ASCII text, not
-            # a clock icon.)
-            if elapsed is not None:
-                label += f" [{format_duration(elapsed)}]"
             labels.append(label)
 
         annotated = frame.copy()
-        if self.show_spaces and self._cached_spaces:
+        if self._cached_spaces:
+            # Occupancy and the parking timer always run, regardless of the
+            # show_spaces display toggle — a space's clock shouldn't pause
+            # just because you're not currently looking at the overlay.
             # Prefer the real segmentation masks over boxes for occupancy —
             # a rectangular box is looser than the vehicle and can spill into
             # a neighboring space enough to false-positive as occupied there.
             masks = list(detections.mask) if detections.mask is not None else None
-            annotated = draw_spaces(annotated, self._cached_spaces, [tuple(b) for b in detections.xyxy], masks=masks)
+            occupancy = compute_occupancy(self._cached_spaces, [tuple(b) for b in detections.xyxy], masks=masks)
+            elapsed_by_label = self.parking_timers.update({label for label, occ in occupancy.items() if occ})
+            if self.show_spaces:
+                annotated = draw_spaces(annotated, self._cached_spaces, occupancy, elapsed_by_label)
         if self.show_vehicles:
             annotated = self.box_annotator.annotate(scene=annotated, detections=detections)
             annotated = self.label_annotator.annotate(scene=annotated, detections=detections, labels=labels)

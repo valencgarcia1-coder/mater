@@ -1,26 +1,26 @@
-"""Per-vehicle "how long has this been parked" timers.
+"""Per-space "how long has a vehicle been parked here" timers.
 
-Deliberately anchored to spatial position, not the tracker's track_id.
-ByteTrack's ID can still change after a long/heavy occlusion — we saw this
-happen ourselves on the Brighton feed even after tuning it — which would
-silently reset a track-id-keyed timer back to zero. That's exactly the
-"cannot go on and off" behavior a persistent dwell timer must not have. A
-session here tracks a *location*; whichever vehicle box lands there each
-frame keeps that session's clock running, independent of what ID the
-tracker currently has for it.
+Anchored to the numbered parking space itself, not to a tracked vehicle or
+a raw position on the ground. This is a deliberate choice: a parking space
+is fixed, human-defined ground truth, and every tow-decision rule this
+system exists to support is written per zone/space ("stationary in a
+restricted zone for 18 minutes"), not per arbitrary vehicle. A vehicle
+sitting in an aisle or open pavement has no rule attached to it at all, so
+timing it wouldn't mean anything — and matching "the same parked vehicle"
+across frames by position needs a distance-threshold heuristic, whereas
+"is this exact space occupied" is already computed precisely via mask
+overlap (see spaces.py) and needs no guessing.
 
-A session only starts its clock once a vehicle has held roughly the same
-spot for CONFIRM_STATIONARY_SECONDS — a car passing through the lot isn't
-"parked," so it shouldn't get a timer. A session survives up to
-GRACE_PERIOD_SECONDS of no matching detection (occlusion by a passing
-vehicle, a missed frame) before we conclude the vehicle actually left.
+A space's clock only starts once it's been continuously occupied for
+CONFIRM_OCCUPIED_SECONDS — a car briefly driving through a marked spot
+isn't "parked." It survives up to GRACE_PERIOD_SECONDS of reading as
+unoccupied (a passing vehicle blocking the view for a moment, a missed
+frame) before we conclude the vehicle actually left.
 
-State is persisted to disk after every update: restarting the server
-should not zero out the clock for a car that's still legitimately parked.
-For a car already parked when a session is first created (including the
-very first frame the whole system ever runs), there's no way to know how
-long it was already sitting there, so — as intended — its timer simply
-starts counting from zero at that point.
+State persists to disk after every update: restarting the server shouldn't
+zero out the clock for a space that's still legitimately occupied. A space
+that's already occupied the first time we ever see it has no knowable
+prior duration, so — as intended — its timer starts from zero.
 """
 
 from __future__ import annotations
@@ -29,74 +29,50 @@ import json
 import time
 from dataclasses import asdict, dataclass
 
-MATCH_DISTANCE_PX = 45  # how close a ground point must be to count as "the same parked vehicle"
-CONFIRM_STATIONARY_SECONDS = 5  # how long it must hold still before we call it "parked", not "passing through"
-GRACE_PERIOD_SECONDS = 12  # how long a spot can go unmatched before we call the vehicle gone
+CONFIRM_OCCUPIED_SECONDS = 4  # how long continuous occupancy must hold before we call it "parked"
+GRACE_PERIOD_SECONDS = 10  # how long a space can read empty before we call the vehicle gone
 
 
 @dataclass
-class _Session:
-    session_id: int
-    # Bottom-center of the vehicle's box (where it touches the ground), not
-    # the box's geometric center — the ground-contact edge is a more stable
-    # reference point across frames than the middle of the vehicle's visible
-    # height, which shifts with viewing angle, cargo, mirrors, mask jitter.
-    ground_x: float
-    ground_y: float
-    first_seen_at: float
-    last_seen_at: float
-    started_at: float | None = None  # None until confirmed stationary
+class _SpaceState:
+    label: str
+    first_occupied_at: float
+    last_occupied_at: float
+    started_at: float | None = None  # None until confirmed parked
 
 
 class ParkingTimers:
     def __init__(self, state_path: str | None = "parking_timers.json") -> None:
-        self._sessions: dict[int, _Session] = {}
-        self._next_id = 1
+        self._state: dict[str, _SpaceState] = {}
         self._state_path = state_path
         self._load()
 
-    def update(self, ground_points: list[tuple[float, float]], now: float | None = None) -> list[float | None]:
-        """Call once per frame with every current detection's ground point
-        (bottom-center of its box), in the same order as the detections.
-        Returns, per detection, elapsed parked seconds — or None if it
-        hasn't been confirmed stationary yet."""
+    def update(self, occupied_labels: set[str], now: float | None = None) -> dict[str, float | None]:
+        """Call once per frame with the set of space labels currently read
+        as occupied. Returns {label: elapsed_seconds}, only for spaces whose
+        clock has actually started (confirmed parked, not just occupied)."""
         now = now if now is not None else time.time()
-        assigned: dict[int, int] = {}
-        used_sessions: set[int] = set()
+        elapsed: dict[str, float | None] = {}
 
-        for i, (gx, gy) in enumerate(ground_points):
-            best_id, best_dist = None, MATCH_DISTANCE_PX
-            for sid, s in self._sessions.items():
-                if sid in used_sessions:
-                    continue
-                dist = ((s.ground_x - gx) ** 2 + (s.ground_y - gy) ** 2) ** 0.5
-                if dist <= best_dist:
-                    best_id, best_dist = sid, dist
-
-            if best_id is not None:
-                s = self._sessions[best_id]
-                s.ground_x, s.ground_y = gx, gy
-                s.last_seen_at = now
-                if s.started_at is None and now - s.first_seen_at >= CONFIRM_STATIONARY_SECONDS:
-                    s.started_at = s.first_seen_at
-                assigned[i] = best_id
+        for label in occupied_labels:
+            s = self._state.get(label)
+            if s is None:
+                s = _SpaceState(label, first_occupied_at=now, last_occupied_at=now)
+                self._state[label] = s
             else:
-                sid = self._next_id
-                self._next_id += 1
-                self._sessions[sid] = _Session(sid, gx, gy, first_seen_at=now, last_seen_at=now)
-                assigned[i] = sid
-            used_sessions.add(assigned[i])
+                s.last_occupied_at = now
+                if s.started_at is None and now - s.first_occupied_at >= CONFIRM_OCCUPIED_SECONDS:
+                    s.started_at = s.first_occupied_at
+            elapsed[label] = (now - s.started_at) if s.started_at is not None else None
 
-        stale = [sid for sid, s in self._sessions.items() if now - s.last_seen_at > GRACE_PERIOD_SECONDS]
-        for sid in stale:
-            del self._sessions[sid]
+        stale = [
+            label for label, s in self._state.items()
+            if label not in occupied_labels and now - s.last_occupied_at > GRACE_PERIOD_SECONDS
+        ]
+        for label in stale:
+            del self._state[label]
 
         self._save()
-
-        elapsed: list[float | None] = []
-        for i in range(len(ground_points)):
-            s = self._sessions.get(assigned.get(i))
-            elapsed.append((now - s.started_at) if (s and s.started_at is not None) else None)
         return elapsed
 
     def _load(self) -> None:
@@ -112,16 +88,15 @@ class ParkingTimers:
         # to "since restart" rather than purging everything on the first update.
         now = time.time()
         for item in raw:
-            item["last_seen_at"] = now
-            s = _Session(**item)
-            self._sessions[s.session_id] = s
-            self._next_id = max(self._next_id, s.session_id + 1)
+            item["last_occupied_at"] = now
+            s = _SpaceState(**item)
+            self._state[s.label] = s
 
     def _save(self) -> None:
         if not self._state_path:
             return
         with open(self._state_path, "w") as f:
-            json.dump([asdict(s) for s in self._sessions.values()], f)
+            json.dump([asdict(s) for s in self._state.values()], f)
 
 
 def format_duration(seconds: float) -> str:
