@@ -49,6 +49,7 @@ INDEX_HTML = """<!doctype html>
   <div id="toggles">
     <button id="vehiclesBtn" class="toggle">Vehicle tracking</button>
     <button id="spacesBtn" class="toggle">Parking space availability</button>
+    <button id="platesBtn" class="toggle">Plate reading (CPU-heavy)</button>
   </div>
   <img src="/stream" alt="live annotated feed">
   <div id="status">connecting…</div>
@@ -59,12 +60,14 @@ INDEX_HTML = """<!doctype html>
     }
     document.getElementById('vehiclesBtn').dataset.label = 'Vehicle tracking';
     document.getElementById('spacesBtn').dataset.label = 'Parking space availability';
+    document.getElementById('platesBtn').dataset.label = 'Plate reading (CPU-heavy)';
 
     async function loadToggles() {
       const r = await fetch('/api/toggles');
       const t = await r.json();
       paint(document.getElementById('vehiclesBtn'), t.show_vehicles);
       paint(document.getElementById('spacesBtn'), t.show_spaces);
+      paint(document.getElementById('platesBtn'), t.read_plates);
     }
 
     async function flip(key, btn) {
@@ -83,6 +86,7 @@ INDEX_HTML = """<!doctype html>
     }
     document.getElementById('vehiclesBtn').onclick = (e) => flip('show_vehicles', e.target);
     document.getElementById('spacesBtn').onclick = (e) => flip('show_spaces', e.target);
+    document.getElementById('platesBtn').onclick = (e) => flip('read_plates', e.target);
 
     async function poll() {
       try {
@@ -344,12 +348,16 @@ def create_app(config: CameraConfig, read_plates: bool = True, spaces_file: str 
         feed.set_spaces(spaces)
         return jsonify({"ok": True, "count": len(spaces)})
 
-    @app.route("/api/toggles", methods=["GET"])
-    def get_toggles():
-        return jsonify({
+    def _toggles_state():
+        return {
             "show_vehicles": feed.pipeline.show_vehicles,
             "show_spaces": feed.pipeline.show_spaces,
-        })
+            "read_plates": feed.pipeline.read_plates_enabled,
+        }
+
+    @app.route("/api/toggles", methods=["GET"])
+    def get_toggles():
+        return jsonify(_toggles_state())
 
     @app.route("/api/toggles", methods=["POST"])
     def post_toggles():
@@ -358,10 +366,9 @@ def create_app(config: CameraConfig, read_plates: bool = True, spaces_file: str 
             feed.pipeline.show_vehicles = bool(payload["show_vehicles"])
         if "show_spaces" in payload:
             feed.pipeline.show_spaces = bool(payload["show_spaces"])
-        return jsonify({
-            "show_vehicles": feed.pipeline.show_vehicles,
-            "show_spaces": feed.pipeline.show_spaces,
-        })
+        if "read_plates" in payload:
+            feed.pipeline.read_plates_enabled = bool(payload["read_plates"])
+        return jsonify(_toggles_state())
 
     return app
 

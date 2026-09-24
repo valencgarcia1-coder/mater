@@ -15,11 +15,13 @@ step per frame and share the running best-plate-per-track state.
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Iterator
 
 import cv2
 import numpy as np
 import supervision as sv
+import torch
 from ultralytics import YOLO
 
 from detector.config import VEHICLE_CLASSES, CameraConfig, SpaceRegion
@@ -29,6 +31,12 @@ from detector.spaces import build_space_masks, draw_spaces
 from detector.video_source import frames
 
 log = logging.getLogger(__name__)
+
+# By default torch (and this machine's other libraries) will happily claim
+# every core for CPU inference — fine in isolation, but this runs alongside
+# a browser, this coding session, and whatever else is on the machine.
+# Capping it trades a bit of throughput for not starving everything else.
+torch.set_num_threads(max(1, min(4, os.cpu_count() or 4)))
 
 
 class DetectionPipeline:
@@ -84,6 +92,12 @@ class DetectionPipeline:
         # or reset a parking timer's state.
         self.show_vehicles = True
         self.show_spaces = True
+        # Off by default: plate OCR runs its own model per tracked vehicle,
+        # every frame — the single most expensive thing in this pipeline,
+        # and on a far-away feed like Brighton (per the PRD, unreadable at
+        # this distance) it burns CPU for nothing. The model stays loaded so
+        # flipping this on is instant, no reload.
+        self.read_plates_enabled = False
 
     def set_spaces(self, spaces: list[SpaceRegion]) -> None:
         """(Re)builds the numbered occupancy-space overlay. Public so a live
@@ -128,7 +142,7 @@ class DetectionPipeline:
             # "car" is the overwhelming majority — naming it on every box is
             # pure clutter, but a truck/bus/motorcycle is worth calling out.
             label = f"#{track_id}" if class_name == "car" else f"#{track_id} {class_name}"
-            if self.plate_reader is not None:
+            if self.plate_reader is not None and self.read_plates_enabled:
                 label += self._update_and_format_plate(track_id, frame, box)
             # None means "not yet confirmed stationary" — still arriving/passing
             # through, not parked, so no timer shown yet. (cv2's Hershey font
@@ -140,7 +154,11 @@ class DetectionPipeline:
 
         annotated = frame.copy()
         if self.show_spaces and self._cached_spaces:
-            annotated = draw_spaces(annotated, self._cached_spaces, [tuple(b) for b in detections.xyxy])
+            # Prefer the real segmentation masks over boxes for occupancy —
+            # a rectangular box is looser than the vehicle and can spill into
+            # a neighboring space enough to false-positive as occupied there.
+            masks = list(detections.mask) if detections.mask is not None else None
+            annotated = draw_spaces(annotated, self._cached_spaces, [tuple(b) for b in detections.xyxy], masks=masks)
         if self.show_vehicles:
             annotated = self.box_annotator.annotate(scene=annotated, detections=detections)
             annotated = self.label_annotator.annotate(scene=annotated, detections=detections, labels=labels)

@@ -41,7 +41,11 @@ def build_space_masks(spaces: list[SpaceRegion], frame_shape: tuple[int, int]) -
     return cached
 
 
-def is_occupied(space: _CachedSpace, box: tuple[float, float, float, float]) -> bool:
+def is_occupied_by_box(space: _CachedSpace, box: tuple[float, float, float, float]) -> bool:
+    """Fallback for when a vehicle's segmentation mask isn't available (a
+    non-seg model). A rectangular box is looser than the actual vehicle, so
+    it can spill into a neighboring space enough to false-positive there —
+    prefer is_occupied_by_mask whenever a mask exists."""
     if space.area == 0:
         return False
     sx1, sy1, sx2, sy2 = space.bbox
@@ -54,6 +58,20 @@ def is_occupied(space: _CachedSpace, box: tuple[float, float, float, float]) -> 
 
     region_mask = space.mask[ry1:ry2, rx1:rx2]
     overlap = int(region_mask.sum())
+    return (overlap / space.area) >= OCCUPIED_OVERLAP_THRESHOLD
+
+
+def is_occupied_by_mask(space: _CachedSpace, vehicle_mask: np.ndarray) -> bool:
+    """Pixel-accurate check: the vehicle's actual segmentation mask against
+    the space's mask, cropped to the space's own bounding box for speed.
+    Doesn't false-positive on a neighboring space the way a loose rectangular
+    box can, since it follows the vehicle's real silhouette."""
+    if space.area == 0:
+        return False
+    sx1, sy1, sx2, sy2 = space.bbox
+    region_space = space.mask[sy1:sy2, sx1:sx2]
+    region_vehicle = vehicle_mask[sy1:sy2, sx1:sx2]
+    overlap = int(np.logical_and(region_space, region_vehicle).sum())
     return (overlap / space.area) >= OCCUPIED_OVERLAP_THRESHOLD
 
 
@@ -79,9 +97,17 @@ def _dashed_polyline(frame: np.ndarray, polygon: np.ndarray, color: tuple, thick
             cv2.line(frame, tuple(start), tuple(end), color, thickness, cv2.LINE_AA)
 
 
-def draw_spaces(frame: np.ndarray, spaces: list[_CachedSpace], boxes: list[tuple]) -> np.ndarray:
+def draw_spaces(
+    frame: np.ndarray,
+    spaces: list[_CachedSpace],
+    boxes: list[tuple],
+    masks: list[np.ndarray] | None = None,
+) -> np.ndarray:
     for space in spaces:
-        occupied = any(is_occupied(space, box) for box in boxes)
+        if masks is not None:
+            occupied = any(is_occupied_by_mask(space, m) for m in masks)
+        else:
+            occupied = any(is_occupied_by_box(space, box) for box in boxes)
         color = occupied_color if occupied else empty_color
 
         overlay = frame.copy()
