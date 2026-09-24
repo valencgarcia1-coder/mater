@@ -13,6 +13,7 @@ import LiveFeed from "./LiveFeed";
 import StatsBar from "./StatsBar";
 import SpaceGrid from "./SpaceGrid";
 import EventLog from "./EventLog";
+import ToggleButtons from "./ToggleButtons";
 
 const POLL_MS = 1500;
 
@@ -74,6 +75,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 flex flex-col gap-4">
+          <ToggleButtons />
           <LiveFeed />
           <StatsBar status={status} spaces={spaces} />
         </div>

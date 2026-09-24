@@ -37,8 +37,32 @@ export interface DetectorEvent {
   stationary_duration: number | null;
 }
 
+export interface Space {
+  label: string;
+  polygon: number[][];
+  zone: Zone;
+}
+
+export interface Toggles {
+  show_vehicles: boolean;
+  show_spaces: boolean;
+  read_plates: boolean;
+}
+
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${DETECTOR_URL}${path}`, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`${path} -> ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+async function postJSON<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${DETECTOR_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
   if (!res.ok) {
     throw new Error(`${path} -> ${res.status}`);
   }
@@ -63,4 +87,26 @@ export async function getEvents(limit = 20): Promise<DetectorEvent[]> {
 
 export function streamUrl(): string {
   return `${DETECTOR_URL}/stream`;
+}
+
+export async function getSpaces(): Promise<Space[]> {
+  const data = await getJSON<{ spaces: Space[] }>("/api/spaces");
+  return data.spaces;
+}
+
+// Replaces the whole space list on the running detector — applies live, no
+// restart, since the Flask side already calls pipeline.set_spaces() on save.
+export function saveSpaces(spaces: Space[]): Promise<{ ok: boolean; count: number }> {
+  return postJSON("/api/spaces", { spaces });
+}
+
+export function getToggles(): Promise<Toggles> {
+  return getJSON<Toggles>("/api/toggles");
+}
+
+export function setToggle(
+  key: keyof Toggles,
+  value: boolean,
+): Promise<Toggles> {
+  return postJSON<Toggles>("/api/toggles", { [key]: value });
 }
