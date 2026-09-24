@@ -14,7 +14,7 @@ import cv2
 import numpy as np
 
 from detector.config import SpaceRegion
-from detector.parking_timers import format_duration
+from detector.parking_timers import SpaceState, SpaceStatus, format_duration
 
 OCCUPIED_OVERLAP_THRESHOLD = 0.4  # FR5 default: >=40% of the space's area covered
 
@@ -76,8 +76,17 @@ def is_occupied_by_mask(space: _CachedSpace, vehicle_mask: np.ndarray) -> bool:
     return (overlap / space.area) >= OCCUPIED_OVERLAP_THRESHOLD
 
 
-occupied_color = (0, 0, 255)  # BGR red — thin gray/muted colors got lost against real pavement
-empty_color = (0, 255, 255)  # BGR yellow — high contrast against asphalt and vehicle colors alike
+# Four states, four colors — a merely-parked car shouldn't read as alarming
+# as one that's actually overstayed. Reserving red for TOW_ELIGIBLE (not
+# "occupied" in general) is the point of the state machine: don't cry wolf
+# on every parked car.
+STATE_COLORS = {
+    SpaceState.EMPTY: (0, 255, 255),  # yellow — available
+    SpaceState.ARRIVING: (200, 200, 200),  # gray — occupied, not yet confirmed
+    SpaceState.PARKED: (0, 200, 0),  # green — normal, no issue
+    SpaceState.VIOLATION: (0, 140, 255),  # orange — past the threshold
+    SpaceState.TOW_ELIGIBLE: (0, 0, 255),  # red — actionable
+}
 
 
 def _dashed_polyline(frame: np.ndarray, polygon: np.ndarray, color: tuple, thickness: int, dash_len: int = 12) -> None:
@@ -116,12 +125,13 @@ def draw_spaces(
     frame: np.ndarray,
     spaces: list[_CachedSpace],
     occupancy: dict[str, bool],
-    elapsed_by_label: dict[str, float | None] | None = None,
+    status_by_label: dict[str, SpaceStatus] | None = None,
 ) -> np.ndarray:
-    elapsed_by_label = elapsed_by_label or {}
+    status_by_label = status_by_label or {}
     for space in spaces:
-        occupied = occupancy[space.label]
-        color = occupied_color if occupied else empty_color
+        status = status_by_label.get(space.label)
+        state = status.state if (status and occupancy[space.label]) else SpaceState.EMPTY
+        color = STATE_COLORS[state]
 
         overlay = frame.copy()
         cv2.fillPoly(overlay, [space.polygon], color)
@@ -131,9 +141,10 @@ def draw_spaces(
         # "P" prefix (not "#") so a space is never mistaken for a vehicle
         # track label at a glance — both were rendering as bare "#N".
         text = f"P{space.label}"
-        elapsed = elapsed_by_label.get(space.label)
-        if elapsed is not None:
-            text += f" [{format_duration(elapsed)}]"
+        if state != SpaceState.EMPTY:
+            text += f" {state.upper()}"
+        if status and status.elapsed is not None:
+            text += f" [{format_duration(status.elapsed)}]"
         origin = (int(space.bbox[0]) + 6, int(space.bbox[1]) + 22)
         (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
         cv2.rectangle(frame, (origin[0] - 4, origin[1] - th - 6), (origin[0] + tw + 4, origin[1] + 4), (0, 0, 0), -1)

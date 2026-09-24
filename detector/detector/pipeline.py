@@ -146,9 +146,9 @@ class DetectionPipeline:
             # a neighboring space enough to false-positive as occupied there.
             masks = list(detections.mask) if detections.mask is not None else None
             occupancy = compute_occupancy(self._cached_spaces, [tuple(b) for b in detections.xyxy], masks=masks)
-            elapsed_by_label = self.parking_timers.update({label for label, occ in occupancy.items() if occ})
+            status_by_label = self.parking_timers.update({label for label, occ in occupancy.items() if occ})
             if self.show_spaces:
-                annotated = draw_spaces(annotated, self._cached_spaces, occupancy, elapsed_by_label)
+                annotated = draw_spaces(annotated, self._cached_spaces, occupancy, status_by_label)
         if self.show_vehicles:
             annotated = self.box_annotator.annotate(scene=annotated, detections=detections)
             annotated = self.label_annotator.annotate(scene=annotated, detections=detections, labels=labels)
