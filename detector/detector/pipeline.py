@@ -27,6 +27,7 @@ from ultralytics import YOLO
 from detector.calibration import Calibration
 from detector.class_smoothing import ClassSmoother
 from detector.config import VEHICLE_CLASSES, CameraConfig, SpaceRegion
+from detector.identity_confidence import compute_crowded_flags
 from detector.parking_timers import ParkingTimers
 from detector.plate import PlateRead, PlateReader
 from detector.spaces import build_space_masks, compute_occupancy, draw_spaces
@@ -149,16 +150,29 @@ class DetectionPipeline:
         detections = sv.Detections.from_ultralytics(result)
         detections = self.tracker.update_with_detections(detections)
 
+        # Real, honest geometric evidence of "cars overlap -> trackers can
+        # switch identities" — flags a box that meaningfully overlaps a
+        # DIFFERENT box this frame. Not a fabricated tracking_confidence
+        # score (ByteTrack doesn't expose one); a checkable fact about
+        # crowding, used to warn rather than hide the uncertainty.
+        crowded_flags = compute_crowded_flags([tuple(b) for b in detections.xyxy])
+
         labels = []
-        for track_id, class_id, box in zip(detections.tracker_id, detections.class_id, detections.xyxy):
+        for track_id, class_id, box, crowded in zip(
+            detections.tracker_id, detections.class_id, detections.xyxy, crowded_flags
+        ):
             # Majority vote over the last 10 frames, not this frame's raw
             # pick — a single odd angle or shadow shouldn't flip a car's
-            # label to "truck" and back.
-            smoothed_class_id = self.class_smoother.smooth(int(track_id), int(class_id))
+            # label to "truck" and back. class_confidence (the vote share)
+            # is computed here but not printed on every label — it's real,
+            # just not worth cluttering the common/settled case with.
+            smoothed_class_id, _class_confidence = self.class_smoother.smooth(int(track_id), int(class_id))
             class_name = VEHICLE_CLASSES.get(smoothed_class_id, "vehicle")
             # "car" is the overwhelming majority — naming it on every box is
             # pure clutter, but a truck/bus/motorcycle is worth calling out.
             label = f"#{track_id}" if class_name == "car" else f"#{track_id} {class_name}"
+            if crowded:
+                label += " [crowded]"
             if self.plate_reader is not None and self.read_plates_enabled:
                 label += self._update_and_format_plate(track_id, frame, box)
             labels.append(label)

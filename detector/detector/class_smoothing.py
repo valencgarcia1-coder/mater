@@ -27,12 +27,15 @@ class ClassSmoother:
         self._history: dict[int, deque[int]] = {}
         self._window_frames = window_frames
 
-    def smooth(self, track_id: int, class_id: int) -> int:
-        """Records this frame's classification for track_id and returns the
-        majority class over the trailing window."""
+    def smooth(self, track_id: int, class_id: int) -> tuple[int, float]:
+        """Records this frame's classification for track_id and returns
+        (majority_class, class_confidence) over the trailing window —
+        confidence being the real fraction of recent frames agreeing with
+        that class, not a fabricated number."""
         hist = self._history.setdefault(track_id, deque(maxlen=self._window_frames))
         hist.append(class_id)
-        return Counter(hist).most_common(1)[0][0]
+        majority_class, count = Counter(hist).most_common(1)[0]
+        return majority_class, count / len(hist)
 
     def forget(self, active_track_ids: set[int]) -> None:
         """Drop history for tracks no longer visible, so this doesn't grow
