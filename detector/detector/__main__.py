@@ -21,8 +21,10 @@ def main() -> None:
     parser.add_argument("--config", help="path to a camera config YAML (overrides other flags except source)")
     parser.add_argument("--output", default="output.mp4", help="path to write the annotated video")
     parser.add_argument("--fps", type=int, default=5, help="target processing frame rate")
-    parser.add_argument("--conf", type=float, default=0.4, help="detection confidence threshold")
-    parser.add_argument("--model", default="yolov8n.pt", help="Ultralytics YOLO weights")
+    parser.add_argument("--conf", type=float, default=0.3, help="detection confidence threshold")
+    parser.add_argument("--model", default="yolov8s.pt", help="Ultralytics YOLO weights")
+    parser.add_argument("--imgsz", type=int, default=1280, help="inference resolution")
+    parser.add_argument("--iou", type=float, default=0.2, help="NMS overlap threshold")
     parser.add_argument("--duration", type=float, default=None, help="stop after N seconds (useful for streams)")
     parser.add_argument("--no-plates", action="store_true", help="skip plate reading (faster)")
     parser.add_argument("-v", "--verbose", action="store_true")
@@ -42,6 +44,9 @@ def main() -> None:
             fps=args.fps,
             confidence=args.conf,
             model=args.model,
+            imgsz=args.imgsz,
+            iou=args.iou,
+            agnostic_nms=True,
         )
 
     frame_count = run(config, args.output, duration_seconds=args.duration, read_plates=not args.no_plates)

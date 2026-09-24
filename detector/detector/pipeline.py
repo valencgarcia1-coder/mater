@@ -22,8 +22,9 @@ import numpy as np
 import supervision as sv
 from ultralytics import YOLO
 
-from detector.config import VEHICLE_CLASSES, CameraConfig
+from detector.config import VEHICLE_CLASSES, CameraConfig, SpaceRegion
 from detector.plate import PlateRead, PlateReader
+from detector.spaces import build_space_masks, draw_spaces
 from detector.video_source import frames
 
 log = logging.getLogger(__name__)
@@ -57,12 +58,27 @@ class DetectionPipeline:
         )
         self.plate_reader = PlateReader() if read_plates else None
         self.best_plates: dict[int, PlateRead] = {}
+        self._cached_spaces = None  # built lazily once we know frame size
+        self.set_spaces(config.spaces)
+
+    def set_spaces(self, spaces: list[SpaceRegion]) -> None:
+        """(Re)builds the numbered occupancy-space overlay. Public so a live
+        editor can update spaces on a running pipeline without restarting it."""
+        self.config.spaces = spaces
+        self._pending_spaces = spaces
+        self._cached_spaces = None  # rebuilt on the next frame, once size is known
 
     def process_frame(self, frame: np.ndarray) -> tuple[np.ndarray, sv.Detections]:
+        if self._cached_spaces is None:
+            self._cached_spaces = build_space_masks(self._pending_spaces, frame.shape[:2])
+
         result = self.model(
             frame,
             classes=list(VEHICLE_CLASSES),
             conf=self.config.confidence,
+            imgsz=self.config.imgsz,
+            iou=self.config.iou,
+            agnostic_nms=self.config.agnostic_nms,
             verbose=False,
         )[0]
         detections = sv.Detections.from_ultralytics(result)
@@ -78,7 +94,10 @@ class DetectionPipeline:
                 label += self._update_and_format_plate(track_id, frame, box)
             labels.append(label)
 
-        annotated = self.box_annotator.annotate(scene=frame.copy(), detections=detections)
+        annotated = frame.copy()
+        if self._cached_spaces:
+            annotated = draw_spaces(annotated, self._cached_spaces, [tuple(b) for b in detections.xyxy])
+        annotated = self.box_annotator.annotate(scene=annotated, detections=detections)
         annotated = self.label_annotator.annotate(scene=annotated, detections=detections, labels=labels)
         return annotated, detections
 

@@ -1,8 +1,9 @@
 """Camera config schema for the detector.
 
-M1 only uses `fps`, `confidence`, `model`, and `masks`. `lines` and `spaces`
-are defined here now because they live in the same per-camera config object
-the PRD describes, but they're populated and consumed starting in M2.
+M1 only used `fps`, `confidence`, `model`, and `masks`. `lines` and `spaces`
+live in the same per-camera config object the PRD describes; `spaces` is
+now populated and rendered (M2's occupancy-ROI groundwork), `lines` still
+isn't consumed yet.
 """
 
 from __future__ import annotations
@@ -24,26 +25,39 @@ class MaskRegion:
 
 
 @dataclass
+class SpaceRegion:
+    label: str
+    polygon: list[list[int]]  # [[x, y], ...] in image coordinates, 3+ points
+
+
+@dataclass
 class CameraConfig:
     source: str
     fps: int = 5
     confidence: float = 0.4
     model: str = "yolov8n.pt"
+    imgsz: int = 640
+    iou: float = 0.7
+    agnostic_nms: bool = False
     masks: list[MaskRegion] = field(default_factory=list)
     lines: list[dict] = field(default_factory=list)
-    spaces: list[dict] = field(default_factory=list)
+    spaces: list[SpaceRegion] = field(default_factory=list)
 
     @classmethod
     def from_yaml(cls, path: str) -> "CameraConfig":
         with open(path) as f:
             raw = yaml.safe_load(f) or {}
         masks = [MaskRegion(**m) for m in raw.get("masks", [])]
+        spaces = [SpaceRegion(**s) for s in raw.get("spaces", [])]
         return cls(
             source=raw["source"],
             fps=raw.get("fps", 5),
             confidence=raw.get("confidence", 0.4),
             model=raw.get("model", "yolov8n.pt"),
+            imgsz=raw.get("imgsz", 640),
+            iou=raw.get("iou", 0.7),
+            agnostic_nms=raw.get("agnostic_nms", False),
             masks=masks,
             lines=raw.get("lines", []),
-            spaces=raw.get("spaces", []),
+            spaces=spaces,
         )

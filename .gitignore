@@ -13,6 +13,7 @@ detector/.toolchain/
 detector/*.pt
 detector/eval/clips/
 detector/eval/results/
+detector/spaces.yaml
 
 # Secrets
 .env

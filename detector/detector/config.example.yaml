@@ -3,17 +3,26 @@
 # source: a local file path, an rtsp:// URL, or a YouTube URL (resolved via yt-dlp).
 source: "https://www.youtube.com/watch?v=4a-3iEM7bHk"  # Brighton Ski Resort lot livestream (PRD test source)
 
-fps: 5           # target processing frame rate
-confidence: 0.4  # drop detections below this
-model: "yolov8n.pt"  # pretrained COCO weights (nano, for CPU)
+fps: 5              # target processing frame rate
+confidence: 0.3     # drop detections below this
+model: "yolov8s.pt" # pretrained COCO weights
+imgsz: 1280         # inference resolution — Brighton's frame is 1280x720 native;
+                    # the default 640 downscales it and loses small/distant vehicles
+iou: 0.2            # NMS overlap threshold
+agnostic_nms: true  # without this, the same vehicle can get double-boxed under two
+                    # different vehicle classes (e.g. "car" and "truck") since NMS
+                    # runs per-class by default
 
-# Rectangles to black out before detection, e.g. a burned-in timestamp overlay.
-# Coordinates are pixels in the source frame (x1,y1)-(x2,y2). Brighton's
-# timestamp sits top-left per the PRD; exact box needs tuning against a real
-# frame before relying on it.
+# Rectangles to black out before detection: Brighton has a burned-in
+# timestamp bar spanning the full width at the top of the frame.
+# Coordinates are pixels in the source frame (x1,y1)-(x2,y2).
 masks:
-  - { x1: 0, y1: 0, x2: 220, y2: 40 }
+  - { x1: 0, y1: 0, x2: 1280, y2: 32 }
 
-# Populated starting in M2: counting lines and occupancy space polygons.
+# Counting lines: populated starting in M2, not consumed yet.
 lines: []
+
+# Numbered occupancy spaces (FR5): draw these with the /editor page at
+# detector/server.py rather than hand-writing coordinates here — click each
+# space's corners on a live snapshot and it saves the polygon for you.
 spaces: []

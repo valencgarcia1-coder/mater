@@ -7,10 +7,16 @@ a single crop, it doesn't know about tracks.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
 from fast_alpr import ALPR
+
+# The plate detector's CoreML backend logs a warning (caught internally, not
+# fatal) for some small/edge crops regardless of size — see the try/except
+# in PlateReader.read(). Quiet its logger rather than let it spam stderr.
+logging.getLogger("open_image_models.detection.core.yolo_v9.inference").setLevel(logging.ERROR)
 
 
 @dataclass
@@ -35,7 +41,7 @@ class PlateReader:
         # can make the ALPR's internal plate detector produce a zero-element
         # dynamic shape, which its CoreML backend rejects — skip them rather
         # than let every such box spam a caught-but-logged inference error.
-        if (x2 - x1) < 20 or (y2 - y1) < 20:
+        if (x2 - x1) < 32 or (y2 - y1) < 32:
             return None
 
         crop = frame[y1:y2, x1:x2]
