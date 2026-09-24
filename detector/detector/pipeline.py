@@ -30,7 +30,7 @@ from detector.config import VEHICLE_CLASSES, CameraConfig, SpaceRegion
 from detector.identity_confidence import compute_crowded_flags
 from detector.parking_timers import ParkingTimers
 from detector.plate import PlateRead, PlateReader
-from detector.spaces import build_space_masks, compute_occupancy, draw_spaces
+from detector.spaces import build_space_masks, compute_occupancy, draw_spaces, zone_by_label
 from detector.velocity import STATIONARY_SPEED_M_PER_SEC, STATIONARY_SPEED_PX_PER_SEC, VelocityTracker
 from detector.video_source import frames
 
@@ -50,9 +50,11 @@ class DetectionPipeline:
         read_plates: bool = True,
         timers_state_path: str = "parking_timers.json",
         calibration_path: str = "calibration.json",
+        events_path: str = "events.jsonl",
     ) -> None:
         self.config = config
-        self.parking_timers = ParkingTimers(state_path=timers_state_path)
+        self.events_path = events_path
+        self.parking_timers = ParkingTimers(state_path=timers_state_path, events_path=events_path)
         # Uncalibrated: raw-pixel velocity, which is systematically wrong
         # across a perspective-distorted frame. Calibrating via /calibrate
         # switches this to real meters/sec (see calibration.py).
@@ -213,7 +215,9 @@ class DetectionPipeline:
             if detections.mask is not None:
                 stationary_masks = [m for m, st in zip(detections.mask, stationary) if st]
             occupancy = compute_occupancy(self._cached_spaces, stationary_boxes, masks=stationary_masks)
-            status_by_label = self.parking_timers.update({label for label, occ in occupancy.items() if occ})
+            zones = zone_by_label(self._cached_spaces)
+            occupied_zones = {label: zones[label] for label, occ in occupancy.items() if occ}
+            status_by_label = self.parking_timers.update(occupied_zones)
             if self.show_spaces:
                 annotated = draw_spaces(annotated, self._cached_spaces, occupancy, status_by_label)
         if self.show_vehicles:

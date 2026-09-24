@@ -22,6 +22,7 @@ OCCUPIED_OVERLAP_THRESHOLD = 0.4  # FR5 default: >=40% of the space's area cover
 @dataclass
 class _CachedSpace:
     label: str
+    zone: str
     polygon: np.ndarray  # int32, shape (N, 2)
     mask: np.ndarray  # uint8, full-frame size
     area: int
@@ -38,7 +39,9 @@ def build_space_masks(spaces: list[SpaceRegion], frame_shape: tuple[int, int]) -
         area = int(mask.sum())
         x1, y1 = polygon[:, 0].min(), polygon[:, 1].min()
         x2, y2 = polygon[:, 0].max(), polygon[:, 1].max()
-        cached.append(_CachedSpace(label=space.label, polygon=polygon, mask=mask, area=area, bbox=(x1, y1, x2, y2)))
+        cached.append(
+            _CachedSpace(label=space.label, zone=space.zone, polygon=polygon, mask=mask, area=area, bbox=(x1, y1, x2, y2))
+        )
     return cached
 
 
@@ -121,6 +124,10 @@ def compute_occupancy(
     return occupancy
 
 
+def zone_by_label(spaces: list[_CachedSpace]) -> dict[str, str]:
+    return {space.label: space.zone for space in spaces}
+
+
 def draw_spaces(
     frame: np.ndarray,
     spaces: list[_CachedSpace],
@@ -141,6 +148,11 @@ def draw_spaces(
         # "P" prefix (not "#") so a space is never mistaken for a vehicle
         # track label at a glance — both were rendering as bare "#N".
         text = f"P{space.label}"
+        # "standard" is the overwhelming majority of spaces — naming it on
+        # every label is clutter, but a fire lane/handicap/loading zone is
+        # worth calling out, same reasoning as skipping "car" on vehicles.
+        if space.zone != "standard":
+            text += f" {space.zone.upper()}"
         if state != SpaceState.EMPTY:
             text += f" {state.upper()}"
         if status and status.elapsed is not None:

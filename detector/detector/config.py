@@ -28,6 +28,7 @@ class MaskRegion:
 class SpaceRegion:
     label: str
     polygon: list[list[int]]  # [[x, y], ...] in image coordinates, 3+ points
+    zone: str = "standard"  # looked up in parking_timers.ZONE_RULES for this space's timing rule
 
 
 @dataclass

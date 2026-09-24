@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import threading
 import time
@@ -45,7 +46,7 @@ INDEX_HTML = """<!doctype html>
   </style>
 </head>
 <body>
-  <h1><span>Mater detector — live view</span><span><a href="/editor">number parking spaces →</a> &nbsp; <a href="/calibrate">calibrate distance →</a></span></h1>
+  <h1><span>Mater detector — live view</span><span><a href="/editor">number parking spaces →</a> &nbsp; <a href="/calibrate">calibrate distance →</a> &nbsp; <a href="/events">events →</a></span></h1>
   <div id="toggles">
     <button id="vehiclesBtn" class="toggle">Vehicle tracking</button>
     <button id="spacesBtn" class="toggle">Parking space availability</button>
@@ -118,6 +119,8 @@ EDITOR_HTML = """<!doctype html>
     button:hover { background: #444; }
     button.primary { background: #2563eb; border-color: #2563eb; }
     button.primary:hover { background: #1d4ed8; }
+    select { background: #333; color: #eee; border: 1px solid #555; border-radius: 6px; padding: 7px 10px; font-size: 13px; }
+    label { font-size: 13px; color: #aaa; }
     #list { margin-top: 16px; font-size: 13px; color: #ccc; }
     #list div { padding: 4px 0; display: flex; justify-content: space-between; max-width: 300px; }
     #saveStatus { font-size: 13px; color: #6f6; margin-left: 8px; }
@@ -131,6 +134,12 @@ EDITOR_HTML = """<!doctype html>
     <canvas id="canvas"></canvas>
   </div>
   <div id="controls">
+    <label>Zone <select id="zoneSelect">
+      <option value="standard">standard</option>
+      <option value="fire_lane">fire_lane</option>
+      <option value="handicap">handicap</option>
+      <option value="loading_zone">loading_zone</option>
+    </select></label>
     <button id="finishBtn">Finish space</button>
     <button id="undoBtn">Undo point</button>
     <button id="clearBtn">Clear current</button>
@@ -175,7 +184,8 @@ EDITOR_HTML = """<!doctype html>
         ctx.closePath();
         ctx.stroke();
         ctx.fillStyle = '#8cf';
-        ctx.fillText('P' + s.label, s.polygon[0][0] + 4, s.polygon[0][1] + 16);
+        const zoneTag = s.zone && s.zone !== 'standard' ? ' ' + s.zone : '';
+        ctx.fillText('P' + s.label + zoneTag, s.polygon[0][0] + 4, s.polygon[0][1] + 16);
       }
       if (current.length) {
         ctx.strokeStyle = '#fc6';
@@ -194,7 +204,7 @@ EDITOR_HTML = """<!doctype html>
 
     function renderList() {
       const list = document.getElementById('list');
-      list.innerHTML = spaces.map(s => `<div><span>Space ${s.label}</span><span>${s.polygon.length} pts</span></div>`).join('');
+      list.innerHTML = spaces.map(s => `<div><span>Space ${s.label} (${s.zone || 'standard'})</span><span>${s.polygon.length} pts</span></div>`).join('');
     }
 
     canvas.addEventListener('click', (e) => {
@@ -207,7 +217,8 @@ EDITOR_HTML = """<!doctype html>
 
     document.getElementById('finishBtn').onclick = () => {
       if (current.length < 3) { alert('Need at least 3 points'); return; }
-      spaces.push({ label: nextLabel(), polygon: current });
+      const zone = document.getElementById('zoneSelect').value;
+      spaces.push({ label: nextLabel(), polygon: current, zone });
       current = [];
       render();
     };
@@ -352,6 +363,52 @@ CALIBRATE_HTML = """<!doctype html>
 </html>"""
 
 
+EVENTS_HTML = """<!doctype html>
+<html>
+<head>
+  <title>Mater detector — events</title>
+  <style>
+    body { background: #111; color: #eee; font-family: system-ui, sans-serif; margin: 0; padding: 24px; }
+    h1 { font-size: 16px; font-weight: 600; color: #999; margin: 0 0 8px; }
+    p { font-size: 13px; color: #888; margin: 0 0 16px; }
+    table { border-collapse: collapse; width: 100%; max-width: 800px; font-size: 13px; }
+    th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #333; }
+    th { color: #999; font-weight: 600; }
+    .EMPTY { color: #999; }
+    .ARRIVING { color: #ccc; }
+    .PARKED { color: #4d4; }
+    .VIOLATION { color: #f90; }
+    .TOW_ELIGIBLE { color: #f44; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Space state transition events</h1>
+  <p>One row per real state change — not one row per frame a state merely continues. This is the interface
+     boundary a dispatch system would consume (see events.py); nothing in this codebase currently consumes it.</p>
+  <table>
+    <thead><tr><th>Time</th><th>Space</th><th>Zone</th><th>Event</th><th>Duration</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <script>
+    async function poll() {
+      const r = await fetch('/api/events?limit=100');
+      const { events } = await r.json();
+      document.getElementById('rows').innerHTML = events.map(e => `
+        <tr>
+          <td>${e.detected_at.replace('T', ' ')}</td>
+          <td>P${e.space}</td>
+          <td>${e.zone}</td>
+          <td class="${e.event}">${e.event}</td>
+          <td>${e.stationary_duration != null ? e.stationary_duration + 's' : '—'}</td>
+        </tr>`).join('');
+      setTimeout(poll, 2000);
+    }
+    poll();
+  </script>
+</body>
+</html>"""
+
+
 def load_spaces_file(path: str) -> list[SpaceRegion]:
     try:
         with open(path) as f:
@@ -362,7 +419,7 @@ def load_spaces_file(path: str) -> list[SpaceRegion]:
 
 
 def save_spaces_file(path: str, spaces: list[SpaceRegion]) -> None:
-    payload = {"spaces": [{"label": s.label, "polygon": s.polygon} for s in spaces]}
+    payload = {"spaces": [{"label": s.label, "polygon": s.polygon, "zone": s.zone} for s in spaces]}
     with open(path, "w") as f:
         yaml.safe_dump(payload, f, sort_keys=False)
 
@@ -446,6 +503,10 @@ def create_app(config: CameraConfig, read_plates: bool = True, spaces_file: str 
     def calibrate():
         return CALIBRATE_HTML
 
+    @app.route("/events")
+    def events_page():
+        return EVENTS_HTML
+
     @app.route("/status")
     def status():
         return jsonify(feed.status())
@@ -463,15 +524,34 @@ def create_app(config: CameraConfig, read_plates: bool = True, spaces_file: str 
 
     @app.route("/api/spaces", methods=["GET"])
     def get_spaces():
-        return jsonify({"spaces": [{"label": s.label, "polygon": s.polygon} for s in feed.pipeline.config.spaces]})
+        return jsonify({
+            "spaces": [{"label": s.label, "polygon": s.polygon, "zone": s.zone} for s in feed.pipeline.config.spaces]
+        })
 
     @app.route("/api/spaces", methods=["POST"])
     def post_spaces():
         payload = request.get_json(force=True)
-        spaces = [SpaceRegion(label=str(s["label"]), polygon=s["polygon"]) for s in payload.get("spaces", [])]
+        spaces = [
+            SpaceRegion(label=str(s["label"]), polygon=s["polygon"], zone=s.get("zone", "standard"))
+            for s in payload.get("spaces", [])
+        ]
         save_spaces_file(spaces_file, spaces)
         feed.set_spaces(spaces)
         return jsonify({"ok": True, "count": len(spaces)})
+
+    @app.route("/api/events")
+    def get_events():
+        limit = request.args.get("limit", default=50, type=int)
+        events = []
+        try:
+            with open(feed.pipeline.events_path) as f:
+                lines = f.readlines()
+            for line in lines[-limit:]:
+                events.append(json.loads(line))
+        except FileNotFoundError:
+            pass
+        events.reverse()  # newest first
+        return jsonify({"events": events})
 
     @app.route("/api/calibration", methods=["GET"])
     def get_calibration():
