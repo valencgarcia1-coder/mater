@@ -182,7 +182,13 @@ class DetectionPipeline:
         self.class_smoother.forget({int(tid) for tid in detections.tracker_id})
 
         annotated = frame.copy()
-        if self._cached_spaces:
+        # is not None, not a truthiness check: an empty list ([], all spaces
+        # removed) is falsy in Python, so `if self._cached_spaces:` skipped
+        # this whole block once spaces went from some to none — which meant
+        # self.last_space_status never got updated to reflect that and
+        # stayed frozen at its last value indefinitely. Only None (spaces
+        # genuinely not built yet, before the first frame) should skip this.
+        if self._cached_spaces is not None:
             # Only a vehicle confirmed stationary (displacement over a
             # trailing window, not frame-to-frame position equality) counts
             # toward space occupancy for the parked-timer's purposes. Without

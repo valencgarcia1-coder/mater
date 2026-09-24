@@ -17,9 +17,18 @@ const ZONES: Zone[] = ["standard", "fire_lane", "handicap", "loading_zone"];
 // points, and saving applies immediately to the running detector: the
 // Flask side already calls pipeline.set_spaces() on POST /api/spaces, no
 // restart involved.
+// Save replaces the ENTIRE space list on the detector — there is no partial
+// update. That makes "did the initial load actually succeed" a real data-
+// safety question, not a cosmetic one: if it silently failed and left the
+// local list empty, hitting Save would wipe every real space with nothing.
+// This is exactly what happened once already, so loadStatus exists
+// specifically to make that failure mode impossible to click through.
+type LoadStatus = "loading" | "loaded" | "error";
+
 export default function LiveFeed() {
   const [editing, setEditing] = useState(false);
   const [spaces, setSpacesState] = useState<Space[]>([]);
+  const [loadStatus, setLoadStatus] = useState<LoadStatus>("loading");
   const [current, setCurrent] = useState<number[][]>([]);
   const [zone, setZone] = useState<Zone>("standard");
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
@@ -27,13 +36,48 @@ export default function LiveFeed() {
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  function loadSpaces() {
+    setLoadStatus("loading");
+    getSpaces()
+      .then((s) => {
+        setSpacesState(s);
+        setLoadStatus("loaded");
+      })
+      .catch(() => {
+        // Deliberately NOT setSpacesState([]) — an empty list here reads to
+        // the rest of this component as "the lot really has zero spaces,
+        // safe to save," which is exactly the wrong thing to believe when
+        // the load just failed. Leave whatever's currently in state alone
+        // and make it impossible to save until a load actually succeeds.
+        setLoadStatus("error");
+      });
+  }
+
   useEffect(() => {
     if (!editing) return;
-    getSpaces()
-      .then(setSpacesState)
-      .catch(() => setSpacesState([]));
+    loadSpaces();
     setCurrent([]);
   }, [editing]);
+
+  // An MJPEG multipart stream's <img> doesn't reliably fire `load` the way
+  // a normal static image does — in some browsers it never fires at all
+  // after the first part arrives, which silently blocked every click (the
+  // click handler required naturalSize to already be set). Poll the image
+  // element directly instead of trusting the event; this also self-heals
+  // if the stream reconnects.
+  useEffect(() => {
+    const id = setInterval(() => {
+      const img = imgRef.current;
+      if (img && img.naturalWidth && img.naturalHeight) {
+        setNaturalSize((prev) =>
+          prev && prev.w === img.naturalWidth && prev.h === img.naturalHeight
+            ? prev
+            : { w: img.naturalWidth, h: img.naturalHeight },
+        );
+      }
+    }, 250);
+    return () => clearInterval(id);
+  }, []);
 
   function nextLabel(): string {
     const nums = spaces.map((s) => parseInt(s.label, 10)).filter((n) => !isNaN(n));
@@ -41,10 +85,15 @@ export default function LiveFeed() {
   }
 
   function handleContainerClick(e: React.MouseEvent<HTMLDivElement>) {
-    if (!editing || !containerRef.current || !naturalSize) return;
+    if (!editing || !containerRef.current) return;
+    // Read live from the element rather than trusting state that a flaky
+    // `onLoad` may never have set — see the polling effect above.
+    const naturalW = imgRef.current?.naturalWidth;
+    const naturalH = imgRef.current?.naturalHeight;
+    if (!naturalW || !naturalH) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const x = Math.round(((e.clientX - rect.left) / rect.width) * naturalSize.w);
-    const y = Math.round(((e.clientY - rect.top) / rect.height) * naturalSize.h);
+    const x = Math.round(((e.clientX - rect.left) / rect.width) * naturalW);
+    const y = Math.round(((e.clientY - rect.top) / rect.height) * naturalH);
     setCurrent((c) => [...c, [x, y]]);
   }
 
@@ -59,6 +108,13 @@ export default function LiveFeed() {
   }
 
   async function handleSave() {
+    if (loadStatus !== "loaded") return; // belt and suspenders — button is also disabled
+    if (spaces.length === 0) {
+      const ok = window.confirm(
+        "This will save ZERO spaces, deleting every space on the detector. Are you sure?",
+      );
+      if (!ok) return;
+    }
     setSaveStatus("saving");
     try {
       await saveSpaces(spaces);
@@ -89,12 +145,6 @@ export default function LiveFeed() {
           alt="Live annotated camera feed"
           className="w-full h-auto block select-none"
           draggable={false}
-          onLoad={(e) => {
-            const img = e.currentTarget;
-            if (img.naturalWidth && img.naturalHeight) {
-              setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
-            }
-          }}
         />
         {editing && naturalSize && (
           <svg
@@ -137,6 +187,31 @@ export default function LiveFeed() {
         )}
       </div>
 
+      {editing && !naturalSize && (
+        <p className="text-xs text-amber-400">
+          Waiting on the video stream before clicks can be placed — give it a second.
+        </p>
+      )}
+
+      {editing && loadStatus === "loading" && (
+        <p className="text-xs text-neutral-500">Loading existing spaces…</p>
+      )}
+
+      {editing && loadStatus === "error" && (
+        <div className="flex items-center gap-2 rounded-md border border-red-800 bg-red-950/30 px-3 py-2 text-xs text-red-400">
+          <span>
+            Couldn&apos;t load the existing spaces from the detector — saving is disabled until this
+            succeeds, so nothing gets overwritten by accident.
+          </span>
+          <button
+            onClick={loadSpaces}
+            className="shrink-0 rounded border border-red-700 px-2 py-1 hover:bg-red-950/60"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {editing && (
         <div className="flex flex-col gap-2 rounded-lg border border-neutral-800 bg-neutral-950 p-3">
           <p className="text-xs text-neutral-500">
@@ -178,7 +253,9 @@ export default function LiveFeed() {
             </button>
             <button
               onClick={handleSave}
-              className="rounded-md border border-blue-700 bg-blue-950/50 px-3 py-1.5 text-xs font-medium text-blue-300 hover:bg-blue-950/80"
+              disabled={loadStatus !== "loaded"}
+              title={loadStatus !== "loaded" ? "Waiting on the existing spaces to load first" : undefined}
+              className="rounded-md border border-blue-700 bg-blue-950/50 px-3 py-1.5 text-xs font-medium text-blue-300 hover:bg-blue-950/80 disabled:opacity-40 disabled:hover:bg-blue-950/50"
             >
               Save
             </button>
