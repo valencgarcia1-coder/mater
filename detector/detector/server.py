@@ -491,7 +491,10 @@ def create_app(config: CameraConfig, read_plates: bool = True, spaces_file: str 
     app = Flask(__name__)
     # The dashboard (a separate Next.js dev server, different origin) needs
     # to call these APIs directly from the browser.
-    CORS(app, resources={r"/api/*": {"origins": "*"}, r"/stream": {"origins": "*"}, r"/snapshot": {"origins": "*"}})
+    # Blanket, not per-route: this is a local dev tool with no auth/secrets,
+    # and enumerating routes here is just something to forget to update the
+    # next time an endpoint is added.
+    CORS(app, resources={r"/*": {"origins": "*"}})
     feed = LiveFeed(config, read_plates=read_plates)
     feed.start()
 
