@@ -15,6 +15,7 @@ detector/eval/clips/
 detector/eval/results/
 detector/spaces.yaml
 detector/parking_timers.json
+detector/calibration.json
 
 # Secrets
 .env

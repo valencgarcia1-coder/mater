@@ -24,11 +24,12 @@ import supervision as sv
 import torch
 from ultralytics import YOLO
 
+from detector.calibration import Calibration
 from detector.config import VEHICLE_CLASSES, CameraConfig, SpaceRegion
 from detector.parking_timers import ParkingTimers
 from detector.plate import PlateRead, PlateReader
 from detector.spaces import build_space_masks, compute_occupancy, draw_spaces
-from detector.velocity import VelocityTracker
+from detector.velocity import STATIONARY_SPEED_M_PER_SEC, STATIONARY_SPEED_PX_PER_SEC, VelocityTracker
 from detector.video_source import frames
 
 log = logging.getLogger(__name__)
@@ -41,10 +42,21 @@ torch.set_num_threads(max(1, min(4, os.cpu_count() or 4)))
 
 
 class DetectionPipeline:
-    def __init__(self, config: CameraConfig, read_plates: bool = True, timers_state_path: str = "parking_timers.json") -> None:
+    def __init__(
+        self,
+        config: CameraConfig,
+        read_plates: bool = True,
+        timers_state_path: str = "parking_timers.json",
+        calibration_path: str = "calibration.json",
+    ) -> None:
         self.config = config
         self.parking_timers = ParkingTimers(state_path=timers_state_path)
-        self.velocity_tracker = VelocityTracker()
+        # Uncalibrated: raw-pixel velocity, which is systematically wrong
+        # across a perspective-distorted frame. Calibrating via /calibrate
+        # switches this to real meters/sec (see calibration.py).
+        self.calibration = Calibration(path=calibration_path)
+        threshold = STATIONARY_SPEED_M_PER_SEC if self.calibration.is_calibrated else STATIONARY_SPEED_PX_PER_SEC
+        self.velocity_tracker = VelocityTracker(stationary_threshold=threshold)
         self.model = YOLO(config.model)
         self.tracker = sv.ByteTrack(
             # This is ByteTrack's actual point, and we were bypassing it: a
@@ -101,6 +113,13 @@ class DetectionPipeline:
         # flipping this on is instant, no reload.
         self.read_plates_enabled = False
 
+    def apply_calibration(self, image_points: list[list[float]], width_m: float, height_m: float) -> None:
+        """Saves new calibration points and switches the velocity threshold
+        to real meters/sec. Public so the /calibrate page can update a
+        running pipeline without restarting it."""
+        self.calibration.save(image_points, width_m, height_m)
+        self.velocity_tracker = VelocityTracker(stationary_threshold=STATIONARY_SPEED_M_PER_SEC)
+
     def set_spaces(self, spaces: list[SpaceRegion]) -> None:
         """(Re)builds the numbered occupancy-space overlay. Public so a live
         editor can update spaces on a running pipeline without restarting it."""
@@ -150,9 +169,15 @@ class DetectionPipeline:
             # only asks whether something is there, never whether it's
             # still moving.
             ground_points = [(float((x1 + x2) / 2), float(y2)) for x1, y1, x2, y2 in detections.xyxy]
+            # Calibrated: convert to real ground-plane meters first, so the
+            # same physical movement reads as the same speed whether the
+            # vehicle is near the camera (many pixels) or near the horizon
+            # (few pixels) — see calibration.py. Uncalibrated: pass through
+            # as raw pixels, matched by the pixel threshold set in __init__.
+            velocity_points = [self.calibration.to_ground_plane(pt) for pt in ground_points]
             stationary = [
                 self.velocity_tracker.is_stationary(int(tid), pt)
-                for tid, pt in zip(detections.tracker_id, ground_points)
+                for tid, pt in zip(detections.tracker_id, velocity_points)
             ]
             self.velocity_tracker.forget({int(tid) for tid in detections.tracker_id})
 

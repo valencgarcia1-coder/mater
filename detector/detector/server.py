@@ -45,7 +45,7 @@ INDEX_HTML = """<!doctype html>
   </style>
 </head>
 <body>
-  <h1><span>Mater detector — live view</span><a href="/editor">number parking spaces →</a></h1>
+  <h1><span>Mater detector — live view</span><span><a href="/editor">number parking spaces →</a> &nbsp; <a href="/calibrate">calibrate distance →</a></span></h1>
   <div id="toggles">
     <button id="vehiclesBtn" class="toggle">Vehicle tracking</button>
     <button id="spacesBtn" class="toggle">Parking space availability</button>
@@ -231,6 +231,127 @@ EDITOR_HTML = """<!doctype html>
 </html>"""
 
 
+CALIBRATE_HTML = """<!doctype html>
+<html>
+<head>
+  <title>Mater detector — calibrate distance</title>
+  <style>
+    body { background: #111; color: #eee; font-family: system-ui, sans-serif; margin: 0; padding: 24px; }
+    h1 { font-size: 16px; font-weight: 600; color: #999; margin: 0 0 8px; }
+    p { font-size: 13px; color: #888; margin: 0 0 16px; max-width: 640px; }
+    #wrap { position: relative; display: inline-block; }
+    canvas { border-radius: 8px; display: block; cursor: crosshair; }
+    #controls { margin-top: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    button, input { background: #333; color: #eee; border: 1px solid #555; border-radius: 6px; padding: 8px 14px; cursor: pointer; font-size: 13px; }
+    input { cursor: text; width: 70px; }
+    button:hover { background: #444; }
+    button.primary { background: #2563eb; border-color: #2563eb; }
+    button.primary:hover { background: #1d4ed8; }
+    label { font-size: 13px; color: #aaa; }
+    #saveStatus { font-size: 13px; color: #6f6; margin-left: 8px; }
+    #calStatus { margin-top: 12px; font-size: 13px; color: #888; }
+  </style>
+</head>
+<body>
+  <h1>Calibrate distance</h1>
+  <p>Click 4 corners, in order, of a rectangle you know the real size of on the ground — one marked parking
+     space works well. Order matters: top-left, top-right, bottom-right, bottom-left (as the rectangle actually
+     sits on the ground, not necessarily top-left of the screen). Set its real width/height in meters, then Save.
+     This fixes the "20 pixels near the camera != 20 pixels near the horizon" problem for stationary detection.</p>
+  <div id="wrap">
+    <canvas id="canvas"></canvas>
+  </div>
+  <div id="controls">
+    <button id="resetBtn">Reset points</button>
+    <label>Width (m) <input id="widthInput" type="number" step="0.1" value="2.7"></label>
+    <label>Height (m) <input id="heightInput" type="number" step="0.1" value="5.5"></label>
+    <button id="saveBtn" class="primary">Save</button>
+    <span id="saveStatus"></span>
+  </div>
+  <div id="calStatus">loading…</div>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    let points = [];
+
+    async function loadExisting() {
+      const r = await fetch('/api/calibration');
+      const c = await r.json();
+      const status = document.getElementById('calStatus');
+      if (c.calibrated) {
+        points = c.image_points;
+        document.getElementById('widthInput').value = c.width_m;
+        document.getElementById('heightInput').value = c.height_m;
+        status.textContent = `Calibrated: ${c.width_m}m x ${c.height_m}m rectangle`;
+      } else {
+        status.textContent = 'Not calibrated yet — using raw pixel distances (perspective-blind).';
+      }
+      render();
+    }
+
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      render();
+    };
+    img.src = '/snapshot?' + Date.now();
+
+    function render() {
+      ctx.drawImage(img, 0, 0);
+      ctx.lineWidth = 2;
+      ctx.font = '16px sans-serif';
+      ctx.strokeStyle = '#8cf';
+      ctx.fillStyle = '#8cf';
+      points.forEach((p, i) => {
+        ctx.beginPath();
+        ctx.arc(p[0], p[1], 5, 0, 7);
+        ctx.fill();
+        ctx.fillText(String(i + 1), p[0] + 8, p[1] - 8);
+      });
+      if (points.length > 1) {
+        ctx.beginPath();
+        points.forEach((p, i) => i === 0 ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]));
+        if (points.length === 4) ctx.closePath();
+        ctx.stroke();
+      }
+    }
+
+    canvas.addEventListener('click', (e) => {
+      if (points.length >= 4) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.round((e.clientX - rect.left) * (canvas.width / rect.width));
+      const y = Math.round((e.clientY - rect.top) * (canvas.height / rect.height));
+      points.push([x, y]);
+      render();
+    });
+
+    document.getElementById('resetBtn').onclick = () => { points = []; render(); };
+    document.getElementById('saveBtn').onclick = async () => {
+      if (points.length !== 4) { alert('Click exactly 4 points first'); return; }
+      const width_m = parseFloat(document.getElementById('widthInput').value);
+      const height_m = parseFloat(document.getElementById('heightInput').value);
+      const r = await fetch('/api/calibration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_points: points, width_m, height_m })
+      });
+      const status = document.getElementById('saveStatus');
+      if (r.ok) {
+        status.textContent = 'saved ✓';
+        await loadExisting();
+      } else {
+        status.textContent = 'error — check point order / values';
+      }
+      setTimeout(() => status.textContent = '', 3000);
+    };
+
+    loadExisting();
+  </script>
+</body>
+</html>"""
+
+
 def load_spaces_file(path: str) -> list[SpaceRegion]:
     try:
         with open(path) as f:
@@ -321,6 +442,10 @@ def create_app(config: CameraConfig, read_plates: bool = True, spaces_file: str 
     def editor():
         return EDITOR_HTML
 
+    @app.route("/calibrate")
+    def calibrate():
+        return CALIBRATE_HTML
+
     @app.route("/status")
     def status():
         return jsonify(feed.status())
@@ -347,6 +472,24 @@ def create_app(config: CameraConfig, read_plates: bool = True, spaces_file: str 
         save_spaces_file(spaces_file, spaces)
         feed.set_spaces(spaces)
         return jsonify({"ok": True, "count": len(spaces)})
+
+    @app.route("/api/calibration", methods=["GET"])
+    def get_calibration():
+        raw = feed.pipeline.calibration.as_dict()
+        if raw is None:
+            return jsonify({"calibrated": False})
+        return jsonify({"calibrated": True, **raw})
+
+    @app.route("/api/calibration", methods=["POST"])
+    def post_calibration():
+        payload = request.get_json(force=True)
+        try:
+            feed.pipeline.apply_calibration(
+                payload["image_points"], float(payload["width_m"]), float(payload["height_m"])
+            )
+        except (KeyError, ValueError) as e:
+            return jsonify({"ok": False, "error": str(e)}), 400
+        return jsonify({"ok": True})
 
     def _toggles_state():
         return {

@@ -3,8 +3,8 @@ frame position equality (which false-negatives on ordinary detection
 jitter — a box's exact pixel position wobbles frame to frame even for a
 car that hasn't moved at all).
 
-Maintains a short position history per track_id and reports speed in
-pixels/sec computed from the oldest-to-newest sample within a trailing
+Maintains a short position history per track_id and reports speed
+(distance/sec) computed from the oldest-to-newest sample within a trailing
 window. Used to gate which vehicles count toward a space's "confirmed
 parked" state — a car still slowly repositioning (backing in, a
 three-point turn) can momentarily overlap a space's polygon enough to read
@@ -12,11 +12,13 @@ as occupied without actually being parked yet; the space-occupancy-duration
 check alone doesn't catch this because it only asks "is something here",
 never "is that something still moving."
 
-Real-world units (e.g. mph, via a calibrated image-to-ground-plane
-homography) would be a better signal than raw pixels/sec, since the same
-physical speed looks like more pixels/sec near the camera than far away in
-a perspective shot. That needs a camera calibration step that doesn't exist
-yet — this is the uncalibrated interim version.
+Deliberately unit-agnostic: the caller decides whether points are raw image
+pixels or calibrated ground-plane meters (see calibration.py) and passes
+the matching threshold. A single pixels/sec threshold is wrong across a
+perspective-distorted frame — a car near the camera occupies far more
+pixels (and shifts far more pixels per meter moved) than the same car near
+the horizon — which is exactly why calibration.py exists; this class just
+measures displacement/time in whatever space it's given.
 """
 
 from __future__ import annotations
@@ -25,16 +27,19 @@ import time
 from collections import deque
 
 WINDOW_SECONDS = 3.0
-STATIONARY_SPEED_PX_PER_SEC = 15.0
+STATIONARY_SPEED_PX_PER_SEC = 15.0  # uncalibrated fallback, in raw image pixels
+STATIONARY_SPEED_M_PER_SEC = 0.3  # calibrated: ~a slow walking creep, in real meters
 
 
 class VelocityTracker:
-    def __init__(self) -> None:
+    def __init__(self, stationary_threshold: float = STATIONARY_SPEED_PX_PER_SEC) -> None:
         self._history: dict[int, deque[tuple[float, float, float]]] = {}
+        self._stationary_threshold = stationary_threshold
 
     def update(self, track_id: int, point: tuple[float, float], now: float | None = None) -> float:
         """Records this frame's position for track_id and returns its
-        current speed in pixels/sec over the trailing window."""
+        current speed over the trailing window, in whatever unit `point`
+        was given in (raw pixels, or calibrated meters)."""
         now = now if now is not None else time.time()
         hist = self._history.setdefault(track_id, deque())
         hist.append((now, point[0], point[1]))
@@ -53,7 +58,7 @@ class VelocityTracker:
         return dist / dt
 
     def is_stationary(self, track_id: int, point: tuple[float, float], now: float | None = None) -> bool:
-        return self.update(track_id, point, now=now) < STATIONARY_SPEED_PX_PER_SEC
+        return self.update(track_id, point, now=now) < self._stationary_threshold
 
     def forget(self, active_track_ids: set[int]) -> None:
         """Drop history for tracks no longer visible, so this doesn't grow
