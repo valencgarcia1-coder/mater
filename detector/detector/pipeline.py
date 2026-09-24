@@ -25,6 +25,7 @@ import torch
 from ultralytics import YOLO
 
 from detector.calibration import Calibration
+from detector.class_smoothing import ClassSmoother
 from detector.config import VEHICLE_CLASSES, CameraConfig, SpaceRegion
 from detector.parking_timers import ParkingTimers
 from detector.plate import PlateRead, PlateReader
@@ -57,6 +58,7 @@ class DetectionPipeline:
         self.calibration = Calibration(path=calibration_path)
         threshold = STATIONARY_SPEED_M_PER_SEC if self.calibration.is_calibrated else STATIONARY_SPEED_PX_PER_SEC
         self.velocity_tracker = VelocityTracker(stationary_threshold=threshold)
+        self.class_smoother = ClassSmoother()
         self.model = YOLO(config.model)
         self.tracker = sv.ByteTrack(
             # This is ByteTrack's actual point, and we were bypassing it: a
@@ -149,13 +151,18 @@ class DetectionPipeline:
 
         labels = []
         for track_id, class_id, box in zip(detections.tracker_id, detections.class_id, detections.xyxy):
-            class_name = VEHICLE_CLASSES.get(class_id, "vehicle")
+            # Majority vote over the last 10 frames, not this frame's raw
+            # pick — a single odd angle or shadow shouldn't flip a car's
+            # label to "truck" and back.
+            smoothed_class_id = self.class_smoother.smooth(int(track_id), int(class_id))
+            class_name = VEHICLE_CLASSES.get(smoothed_class_id, "vehicle")
             # "car" is the overwhelming majority — naming it on every box is
             # pure clutter, but a truck/bus/motorcycle is worth calling out.
             label = f"#{track_id}" if class_name == "car" else f"#{track_id} {class_name}"
             if self.plate_reader is not None and self.read_plates_enabled:
                 label += self._update_and_format_plate(track_id, frame, box)
             labels.append(label)
+        self.class_smoother.forget({int(tid) for tid in detections.tracker_id})
 
         annotated = frame.copy()
         if self._cached_spaces:
