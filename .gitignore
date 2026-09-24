@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .venv/
 *.egg-info/
+detector/.toolchain/
 
 # Detector outputs — never commit video, snapshots, or model weights
 *.mp4

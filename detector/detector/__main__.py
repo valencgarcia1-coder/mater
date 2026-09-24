@@ -24,6 +24,7 @@ def main() -> None:
     parser.add_argument("--conf", type=float, default=0.4, help="detection confidence threshold")
     parser.add_argument("--model", default="yolov8n.pt", help="Ultralytics YOLO weights")
     parser.add_argument("--duration", type=float, default=None, help="stop after N seconds (useful for streams)")
+    parser.add_argument("--no-plates", action="store_true", help="skip plate reading (faster)")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
 
@@ -43,7 +44,7 @@ def main() -> None:
             model=args.model,
         )
 
-    frame_count = run(config, args.output, duration_seconds=args.duration)
+    frame_count = run(config, args.output, duration_seconds=args.duration, read_plates=not args.no_plates)
     print(f"wrote {frame_count} frames to {args.output}")
 
 
