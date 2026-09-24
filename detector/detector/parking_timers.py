@@ -29,7 +29,7 @@ import json
 import time
 from dataclasses import asdict, dataclass
 
-MATCH_DISTANCE_PX = 45  # how close a centroid must be to count as "the same parked vehicle"
+MATCH_DISTANCE_PX = 45  # how close a ground point must be to count as "the same parked vehicle"
 CONFIRM_STATIONARY_SECONDS = 5  # how long it must hold still before we call it "parked", not "passing through"
 GRACE_PERIOD_SECONDS = 12  # how long a spot can go unmatched before we call the vehicle gone
 
@@ -37,8 +37,12 @@ GRACE_PERIOD_SECONDS = 12  # how long a spot can go unmatched before we call the
 @dataclass
 class _Session:
     session_id: int
-    centroid_x: float
-    centroid_y: float
+    # Bottom-center of the vehicle's box (where it touches the ground), not
+    # the box's geometric center — the ground-contact edge is a more stable
+    # reference point across frames than the middle of the vehicle's visible
+    # height, which shifts with viewing angle, cargo, mirrors, mask jitter.
+    ground_x: float
+    ground_y: float
     first_seen_at: float
     last_seen_at: float
     started_at: float | None = None  # None until confirmed stationary
@@ -51,26 +55,27 @@ class ParkingTimers:
         self._state_path = state_path
         self._load()
 
-    def update(self, centroids: list[tuple[float, float]], now: float | None = None) -> list[float | None]:
-        """Call once per frame with every current detection's centroid, in
-        the same order as the detections. Returns, per detection, elapsed
-        parked seconds — or None if it hasn't been confirmed stationary yet."""
+    def update(self, ground_points: list[tuple[float, float]], now: float | None = None) -> list[float | None]:
+        """Call once per frame with every current detection's ground point
+        (bottom-center of its box), in the same order as the detections.
+        Returns, per detection, elapsed parked seconds — or None if it
+        hasn't been confirmed stationary yet."""
         now = now if now is not None else time.time()
         assigned: dict[int, int] = {}
         used_sessions: set[int] = set()
 
-        for i, (cx, cy) in enumerate(centroids):
+        for i, (gx, gy) in enumerate(ground_points):
             best_id, best_dist = None, MATCH_DISTANCE_PX
             for sid, s in self._sessions.items():
                 if sid in used_sessions:
                     continue
-                dist = ((s.centroid_x - cx) ** 2 + (s.centroid_y - cy) ** 2) ** 0.5
+                dist = ((s.ground_x - gx) ** 2 + (s.ground_y - gy) ** 2) ** 0.5
                 if dist <= best_dist:
                     best_id, best_dist = sid, dist
 
             if best_id is not None:
                 s = self._sessions[best_id]
-                s.centroid_x, s.centroid_y = cx, cy
+                s.ground_x, s.ground_y = gx, gy
                 s.last_seen_at = now
                 if s.started_at is None and now - s.first_seen_at >= CONFIRM_STATIONARY_SECONDS:
                     s.started_at = s.first_seen_at
@@ -78,7 +83,7 @@ class ParkingTimers:
             else:
                 sid = self._next_id
                 self._next_id += 1
-                self._sessions[sid] = _Session(sid, cx, cy, first_seen_at=now, last_seen_at=now)
+                self._sessions[sid] = _Session(sid, gx, gy, first_seen_at=now, last_seen_at=now)
                 assigned[i] = sid
             used_sessions.add(assigned[i])
 
@@ -89,7 +94,7 @@ class ParkingTimers:
         self._save()
 
         elapsed: list[float | None] = []
-        for i in range(len(centroids)):
+        for i in range(len(ground_points)):
             s = self._sessions.get(assigned.get(i))
             elapsed.append((now - s.started_at) if (s and s.started_at is not None) else None)
         return elapsed

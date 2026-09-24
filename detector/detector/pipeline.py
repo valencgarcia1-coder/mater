@@ -106,8 +106,13 @@ class DetectionPipeline:
         detections = sv.Detections.from_ultralytics(result)
         detections = self.tracker.update_with_detections(detections)
 
-        centroids = [(float((x1 + x2) / 2), float((y1 + y2) / 2)) for x1, y1, x2, y2 in detections.xyxy]
-        parked_seconds = self.parking_timers.update(centroids)
+        # Bottom-center of the box, not the geometric center: we care where
+        # the vehicle touches the ground, not the middle of its visible
+        # height. The roofline shifts more than the ground-contact edge does
+        # frame to frame (viewing angle, cargo boxes, mirrors, mask jitter),
+        # so this is a more stable anchor for "is this the same parked spot."
+        ground_points = [(float((x1 + x2) / 2), float(y2)) for x1, y1, x2, y2 in detections.xyxy]
+        parked_seconds = self.parking_timers.update(ground_points)
 
         labels = []
         for track_id, class_id, box, elapsed in zip(
