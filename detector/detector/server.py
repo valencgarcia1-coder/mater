@@ -37,13 +37,53 @@ INDEX_HTML = """<!doctype html>
     h1 a { color: #6cf; font-size: 13px; font-weight: 400; text-decoration: none; }
     img { max-width: 100%; border-radius: 8px; display: block; }
     #status { margin-top: 12px; font-size: 13px; color: #888; }
+    #toggles { margin-bottom: 12px; display: flex; gap: 8px; }
+    .toggle { background: #333; color: #eee; border: 1px solid #555; border-radius: 6px; padding: 8px 14px; cursor: pointer; font-size: 13px; }
+    .toggle:hover { background: #444; }
+    .toggle.on { background: #16733f; border-color: #1e9c54; }
+    .toggle.on:hover { background: #1a8a4b; }
   </style>
 </head>
 <body>
   <h1><span>Mater detector — live view</span><a href="/editor">number parking spaces →</a></h1>
+  <div id="toggles">
+    <button id="vehiclesBtn" class="toggle">Vehicle tracking</button>
+    <button id="spacesBtn" class="toggle">Parking space availability</button>
+  </div>
   <img src="/stream" alt="live annotated feed">
   <div id="status">connecting…</div>
   <script>
+    function paint(btn, on) {
+      btn.classList.toggle('on', on);
+      btn.textContent = btn.dataset.label + (on ? ': on' : ': off');
+    }
+    document.getElementById('vehiclesBtn').dataset.label = 'Vehicle tracking';
+    document.getElementById('spacesBtn').dataset.label = 'Parking space availability';
+
+    async function loadToggles() {
+      const r = await fetch('/api/toggles');
+      const t = await r.json();
+      paint(document.getElementById('vehiclesBtn'), t.show_vehicles);
+      paint(document.getElementById('spacesBtn'), t.show_spaces);
+    }
+
+    async function flip(key, btn) {
+      const on = !btn.classList.contains('on');
+      paint(btn, on);  // reflect the click immediately, don't wait on the network
+      const r = await fetch('/api/toggles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: on })
+      });
+      const t = await r.json();
+      // Only repaint the button this call actually changed. Repainting both
+      // from every response is what let two near-simultaneous clicks' replies
+      // arrive out of order and stomp on each other's button state.
+      paint(btn, t[key]);
+    }
+    document.getElementById('vehiclesBtn').onclick = (e) => flip('show_vehicles', e.target);
+    document.getElementById('spacesBtn').onclick = (e) => flip('show_spaces', e.target);
+
     async function poll() {
       try {
         const r = await fetch('/status');
@@ -53,6 +93,7 @@ INDEX_HTML = """<!doctype html>
       } catch (e) {}
       setTimeout(poll, 1000);
     }
+    loadToggles();
     poll();
   </script>
 </body>
@@ -302,6 +343,25 @@ def create_app(config: CameraConfig, read_plates: bool = True, spaces_file: str 
         save_spaces_file(spaces_file, spaces)
         feed.set_spaces(spaces)
         return jsonify({"ok": True, "count": len(spaces)})
+
+    @app.route("/api/toggles", methods=["GET"])
+    def get_toggles():
+        return jsonify({
+            "show_vehicles": feed.pipeline.show_vehicles,
+            "show_spaces": feed.pipeline.show_spaces,
+        })
+
+    @app.route("/api/toggles", methods=["POST"])
+    def post_toggles():
+        payload = request.get_json(force=True)
+        if "show_vehicles" in payload:
+            feed.pipeline.show_vehicles = bool(payload["show_vehicles"])
+        if "show_spaces" in payload:
+            feed.pipeline.show_spaces = bool(payload["show_spaces"])
+        return jsonify({
+            "show_vehicles": feed.pipeline.show_vehicles,
+            "show_spaces": feed.pipeline.show_spaces,
+        })
 
     return app
 

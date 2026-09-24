@@ -78,6 +78,12 @@ class DetectionPipeline:
         self.best_plates: dict[int, PlateRead] = {}
         self._cached_spaces = None  # built lazily once we know frame size
         self.set_spaces(config.spaces)
+        # Display-only toggles. Detection/tracking/timers/occupancy keep
+        # running underneath either way — turning off the vehicle overlay
+        # shouldn't also break space occupancy (which needs the detections)
+        # or reset a parking timer's state.
+        self.show_vehicles = True
+        self.show_spaces = True
 
     def set_spaces(self, spaces: list[SpaceRegion]) -> None:
         """(Re)builds the numbered occupancy-space overlay. Public so a live
@@ -133,10 +139,11 @@ class DetectionPipeline:
             labels.append(label)
 
         annotated = frame.copy()
-        if self._cached_spaces:
+        if self.show_spaces and self._cached_spaces:
             annotated = draw_spaces(annotated, self._cached_spaces, [tuple(b) for b in detections.xyxy])
-        annotated = self.box_annotator.annotate(scene=annotated, detections=detections)
-        annotated = self.label_annotator.annotate(scene=annotated, detections=detections, labels=labels)
+        if self.show_vehicles:
+            annotated = self.box_annotator.annotate(scene=annotated, detections=detections)
+            annotated = self.label_annotator.annotate(scene=annotated, detections=detections, labels=labels)
         return annotated, detections
 
     def _update_and_format_plate(self, track_id: int, frame: np.ndarray, box) -> str:
