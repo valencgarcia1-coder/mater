@@ -37,6 +37,17 @@ class DetectionPipeline:
         self.parking_timers = ParkingTimers(state_path=timers_state_path)
         self.model = YOLO(config.model)
         self.tracker = sv.ByteTrack(
+            # This is ByteTrack's actual point, and we were bypassing it: a
+            # confirmed vehicle's detection score can wobble below the
+            # "confidence" threshold for a frame (lighting, partial
+            # occlusion) without the vehicle having moved or left. ByteTrack
+            # is designed to use those lower-score boxes to keep an already-
+            # confirmed track alive, while still requiring the higher
+            # threshold to START a new one — but only if it actually
+            # receives them. We were pre-filtering at conf=confidence before
+            # the tracker ever saw the frame, discarding exactly the boxes
+            # it needs, which is why boxes were flickering on and off.
+            track_activation_threshold=config.confidence,
             # lost_track_buffer is in units of *our* processed frames (frame_rate
             # stays at its default of 30, which keeps the tracker's internal
             # frame_rate/30 scaling a no-op) — ~2 seconds of occlusion tolerance
@@ -82,7 +93,11 @@ class DetectionPipeline:
         result = self.model(
             frame,
             classes=list(VEHICLE_CLASSES),
-            conf=self.config.confidence,
+            # Deliberately NOT config.confidence — see the ByteTrack comment
+            # in __init__. This has to stay low so the tracker gets the
+            # marginal-confidence boxes it needs to bridge a momentary dip
+            # in an already-tracked vehicle's score.
+            conf=self.config.detection_floor,
             imgsz=self.config.imgsz,
             iou=self.config.iou,
             agnostic_nms=self.config.agnostic_nms,

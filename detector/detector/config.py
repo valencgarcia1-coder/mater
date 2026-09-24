@@ -34,7 +34,8 @@ class SpaceRegion:
 class CameraConfig:
     source: str
     fps: int = 5
-    confidence: float = 0.4
+    confidence: float = 0.4  # threshold to START a new track / count as a confirmed detection
+    detection_floor: float = 0.1  # passed to YOLO itself — kept low on purpose, see note below
     model: str = "yolov8n.pt"
     imgsz: int = 640
     iou: float = 0.7
@@ -53,6 +54,7 @@ class CameraConfig:
             source=raw["source"],
             fps=raw.get("fps", 5),
             confidence=raw.get("confidence", 0.4),
+            detection_floor=raw.get("detection_floor", 0.1),
             model=raw.get("model", "yolov8n.pt"),
             imgsz=raw.get("imgsz", 640),
             iou=raw.get("iou", 0.7),
