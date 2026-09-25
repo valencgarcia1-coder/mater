@@ -13,8 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mater — Live Ops",
-  description: "Live vehicle detection, occupancy, and violation tracking.",
+  title: {
+    template: "%s — Mater",
+    default: "Mater",
+  },
+  description: "Camera-based vehicle detection and defensible parking enforcement.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
