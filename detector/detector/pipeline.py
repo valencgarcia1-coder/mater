@@ -229,17 +229,16 @@ class DetectionPipeline:
             # Occupancy and the parking timer always run, regardless of the
             # show_spaces display toggle — a space's clock shouldn't pause
             # just because you're not currently looking at the overlay.
-            # Prefer the real segmentation masks over boxes for occupancy —
-            # a rectangular box is looser than the vehicle and can spill into
-            # a neighboring space enough to false-positive as occupied there.
-            stationary_boxes = [tuple(b) for b, st in zip(detections.xyxy, stationary) if st]
-            stationary_masks = None
-            if detections.mask is not None:
-                stationary_masks = [m for m, st in zip(detections.mask, stationary) if st]
+            # Ground point, not box/mask area: a space's own visible area is
+            # routinely blocked by a nearer row of cars even when the
+            # vehicles' own detections never overlap each other, which
+            # starves an area-overlap test of the coverage it needs. A
+            # vehicle's ground-contact point only needs a few visible pixels
+            # near its base to place — see spaces.py's module docstring.
+            stationary_ground_points = [pt for pt, st in zip(ground_points, stationary) if st]
             occupancy = compute_occupancy(
                 self._cached_spaces,
-                stationary_boxes,
-                masks=stationary_masks,
+                stationary_ground_points,
                 frame=frame,
                 appearance_model=self.appearance_model,
             )

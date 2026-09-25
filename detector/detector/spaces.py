@@ -1,9 +1,19 @@
-"""FR5 groundwork: numbered parking-space polygons and occupancy overlap.
+"""FR5 groundwork: numbered parking-space polygons and occupancy.
 
 A space's mask is precomputed once (spaces are static per camera config,
-they don't move frame to frame) so checking every detection against every
-space each frame is just cheap cropped-rectangle mask ANDs, not a full-frame
-fill per space per frame.
+they don't move frame to frame) so checking a vehicle against every space
+each frame is a cheap array index, not a full-frame fill per space per
+frame.
+
+Occupancy is decided by a vehicle's ground-contact point (see
+is_occupied_by_point below), not by how much of a vehicle's visible area
+overlaps a space. A parking lot camera routinely can't see a space's full
+area — a nearer row of cars blocks part of the view INTO a space that's
+further back, even though the two vehicles' own detections never overlap
+each other. An area-overlap test needs enough of the *occupying* vehicle
+visible to clear a percentage threshold; a single ground point only needs
+enough of the vehicle visible to localize where it's standing, which
+survives far more of exactly this kind of camera-angle occlusion.
 """
 
 from __future__ import annotations
@@ -16,8 +26,6 @@ import numpy as np
 
 from detector.config import SpaceRegion
 from detector.parking_timers import SpaceState, SpaceStatus, format_duration
-
-OCCUPIED_OVERLAP_THRESHOLD = 0.4  # FR5 default: >=40% of the space's area covered
 
 
 @dataclass
@@ -46,38 +54,24 @@ def build_space_masks(spaces: list[SpaceRegion], frame_shape: tuple[int, int]) -
     return cached
 
 
-def is_occupied_by_box(space: _CachedSpace, box: tuple[float, float, float, float]) -> bool:
-    """Fallback for when a vehicle's segmentation mask isn't available (a
-    non-seg model). A rectangular box is looser than the actual vehicle, so
-    it can spill into a neighboring space enough to false-positive there —
-    prefer is_occupied_by_mask whenever a mask exists."""
-    if space.area == 0:
+def is_occupied_by_point(space: _CachedSpace, point: tuple[float, float]) -> bool:
+    """Ground-contact-point test: is a vehicle's footprint on the pavement
+    (its ground point — bottom-center of its detection box) inside this
+    space's polygon.
+
+    This is a stricter, more honest question than "does the vehicle's
+    visible area overlap the space enough" — a vehicle is either standing
+    on a space or it isn't, and that's true regardless of how much of its
+    body the camera can actually see. It's also immune to the
+    neighbor-mask-spillover false positive by construction: a single point
+    can only ever land inside one non-overlapping space's polygon at a
+    time, so there's nothing to spill across a shared boundary.
+    """
+    h, w = space.mask.shape
+    x, y = int(round(point[0])), int(round(point[1]))
+    if not (0 <= x < w and 0 <= y < h):
         return False
-    sx1, sy1, sx2, sy2 = space.bbox
-    bx1, by1, bx2, by2 = (int(v) for v in box)
-
-    rx1, ry1 = max(sx1, bx1), max(sy1, by1)
-    rx2, ry2 = min(sx2, bx2), min(sy2, by2)
-    if rx2 <= rx1 or ry2 <= ry1:
-        return False
-
-    region_mask = space.mask[ry1:ry2, rx1:rx2]
-    overlap = int(region_mask.sum())
-    return (overlap / space.area) >= OCCUPIED_OVERLAP_THRESHOLD
-
-
-def is_occupied_by_mask(space: _CachedSpace, vehicle_mask: np.ndarray) -> bool:
-    """Pixel-accurate check: the vehicle's actual segmentation mask against
-    the space's mask, cropped to the space's own bounding box for speed.
-    Doesn't false-positive on a neighboring space the way a loose rectangular
-    box can, since it follows the vehicle's real silhouette."""
-    if space.area == 0:
-        return False
-    sx1, sy1, sx2, sy2 = space.bbox
-    region_space = space.mask[sy1:sy2, sx1:sx2]
-    region_vehicle = vehicle_mask[sy1:sy2, sx1:sx2]
-    overlap = int(np.logical_and(region_space, region_vehicle).sum())
-    return (overlap / space.area) >= OCCUPIED_OVERLAP_THRESHOLD
+    return bool(space.mask[y, x])
 
 
 # Four states, four colors — a merely-parked car shouldn't read as alarming
@@ -113,24 +107,25 @@ def _dashed_polyline(frame: np.ndarray, polygon: np.ndarray, color: tuple, thick
 
 # --- Occlusion hardening -----------------------------------------------
 #
-# The overlap checks above only reason about a DETECTED VEHICLE's box/mask
-# against a space's polygon. That geometry breaks in two directions when
-# cars sit close together or pass in front of each other:
+# is_occupied_by_point already rules out neighbor-mask/box spillover by
+# construction (a single point can't be inside two non-overlapping
+# polygons at once). Two failure modes remain even with a point test:
 #
-#   1. A car legitimately parked in space A can have its mask (or a looser
-#      box, if no -seg model) spill across the shared boundary into space
-#      B's polygon enough to cross OCCUPIED_OVERLAP_THRESHOLD there too —
-#      B reads occupied despite nothing being in it.
-#   2. A single frame where a vehicle happens to overlap a space (a car
-#      briefly cutting through, a momentary segmentation glitch) reads
-#      exactly the same as a car settling in to park, because occupancy is
-#      decided fresh every frame with no memory of how long it's held.
+#   1. A spurious detection (a shadow, a reflection, a decal the model
+#      mistakes for a vehicle) can still place a "ground point" inside a
+#      space that's genuinely empty. Geometry alone can't tell a real
+#      vehicle's footprint from a false one.
+#   2. A single frame where a real vehicle's ground point briefly lands
+#      inside a space (a car cutting through, not parking) reads exactly
+#      like a car settling in, because occupancy is decided fresh every
+#      frame with no memory of how long it's held.
 #
 # SpaceAppearanceModel addresses (1) by corroborating a detector-positive
-# reading against the space's own pixels. OccupancyDebouncer addresses (2)
-# by requiring a positive reading to hold for a short window before it's
-# trusted enough to hand to ParkingTimers (which already tolerates brief
-# gaps in the *other* direction via GRACE_PERIOD_SECONDS).
+# reading against the space's own pixels — a phantom detection doesn't
+# actually change what the pavement looks like. OccupancyDebouncer
+# addresses (2) by requiring a positive reading to hold for a short window
+# before it's trusted enough to hand to ParkingTimers (which already
+# tolerates brief gaps in the *other* direction via GRACE_PERIOD_SECONDS).
 
 APPEARANCE_DIFF_THRESHOLD = 18.0  # mean abs grayscale diff (0-255) read as "changed"
 APPEARANCE_LEARNING_RATE = 0.02  # background adaptation rate while confidently empty
@@ -142,8 +137,8 @@ class SpaceAppearanceModel:
     own patch is stable, this keeps a running average of what "empty" looks
     like there. A detector-positive reading is only trusted if the space's
     actual pixels have also visibly changed from that background — a real,
-    independent signal that doesn't care what a neighboring vehicle's mask
-    or box happened to spill into.
+    independent signal a phantom detection (shadow, reflection, a decal)
+    can't produce, since nothing about the pavement actually changed.
 
     Deliberately one-directional: this only ever VETOES a detector-positive
     reading, never invents an occupied space on its own. An appearance
@@ -242,17 +237,13 @@ class OccupancyDebouncer:
 
 def compute_occupancy(
     spaces: list[_CachedSpace],
-    boxes: list[tuple],
-    masks: list[np.ndarray] | None = None,
+    ground_points: list[tuple[float, float]],
     frame: np.ndarray | None = None,
     appearance_model: SpaceAppearanceModel | None = None,
 ) -> dict[str, bool]:
     occupancy: dict[str, bool] = {}
     for space in spaces:
-        if masks is not None:
-            detector_occupied = any(is_occupied_by_mask(space, m) for m in masks)
-        else:
-            detector_occupied = any(is_occupied_by_box(space, box) for box in boxes)
+        detector_occupied = any(is_occupied_by_point(space, pt) for pt in ground_points)
 
         if frame is not None and appearance_model is not None:
             changed = appearance_model.looks_changed(space, frame, detector_occupied)
