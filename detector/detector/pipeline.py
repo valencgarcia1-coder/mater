@@ -35,11 +35,14 @@ from detector.spaces import (
     SpaceAppearanceModel,
     build_space_masks,
     compute_occupancy,
+    draw_reference_points,
     draw_spaces,
+    vehicle_reference_points,
     zone_by_label,
 )
 from detector.velocity import STATIONARY_SPEED_M_PER_SEC, STATIONARY_SPEED_PX_PER_SEC, VelocityTracker
 from detector.video_source import frames
+from detector.vision_labeler import VisionLabeler
 
 log = logging.getLogger(__name__)
 
@@ -58,9 +61,15 @@ class DetectionPipeline:
         timers_state_path: str = "parking_timers.json",
         calibration_path: str = "calibration.json",
         events_path: str = "events.jsonl",
+        vision_labeler: VisionLabeler | None = None,
     ) -> None:
         self.config = config
         self.events_path = events_path
+        # Off unless explicitly passed in: this makes real, billed vision-
+        # model API calls (see vision_labeler.py) to bootstrap a labeled
+        # occupancy dataset. It should never turn on silently just because
+        # the pipeline started.
+        self.vision_labeler = vision_labeler
         self.parking_timers = ParkingTimers(state_path=timers_state_path, events_path=events_path)
         # Uncalibrated: raw-pixel velocity, which is systematically wrong
         # across a perspective-distorted frame. Calibrating via /calibrate
@@ -226,6 +235,14 @@ class DetectionPipeline:
             ]
             self.velocity_tracker.forget({int(tid) for tid in detections.tracker_id})
 
+            # top/front/back, read off each vehicle's own mask when one
+            # exists (falls back to box-derived approximations otherwise —
+            # see vehicle_reference_points). Computed for every detection
+            # (not just stationary ones) since these also drive the visual
+            # dots below, independent of occupancy.
+            masks_or_none = detections.mask if detections.mask is not None else [None] * len(detections.xyxy)
+            all_vehicle_points = [vehicle_reference_points(tuple(box), m) for box, m in zip(detections.xyxy, masks_or_none)]
+
             # Occupancy and the parking timer always run, regardless of the
             # show_spaces display toggle — a space's clock shouldn't pause
             # just because you're not currently looking at the overlay.
@@ -235,10 +252,10 @@ class DetectionPipeline:
             # starves an area-overlap test of the coverage it needs. A
             # vehicle's ground-contact point only needs a few visible pixels
             # near its base to place — see spaces.py's module docstring.
-            stationary_ground_points = [pt for pt, st in zip(ground_points, stationary) if st]
+            stationary_vehicle_points = [pts for pts, st in zip(all_vehicle_points, stationary) if st]
             occupancy = compute_occupancy(
                 self._cached_spaces,
-                stationary_ground_points,
+                stationary_vehicle_points,
                 frame=frame,
                 appearance_model=self.appearance_model,
             )
@@ -264,9 +281,23 @@ class DetectionPipeline:
             }
             if self.show_spaces:
                 annotated = draw_spaces(annotated, self._cached_spaces, occupancy, status_by_label)
+            if self.vision_labeler is not None:
+                # Cheap: just hands off the latest frame/geometry. The
+                # labeler's own background thread decides independently
+                # when a space is actually due for a real API call — see
+                # vision_labeler.py.
+                self.vision_labeler.submit_frame(frame, self._cached_spaces)
         if self.show_vehicles:
             annotated = self.box_annotator.annotate(scene=annotated, detections=detections)
             annotated = self.label_annotator.annotate(scene=annotated, detections=detections, labels=labels)
+            # top/front/back dots — visual confirmation of the points
+            # occupancy actually reasons about (see spaces.py), not just the
+            # box/mask outline. Computed above regardless of this toggle
+            # (occupancy needs them even with the overlay off); only the
+            # drawing is gated here.
+            if self._cached_spaces is not None:
+                for points in all_vehicle_points:
+                    draw_reference_points(annotated, points)
         return annotated, detections
 
     def _update_and_format_plate(self, track_id: int, frame: np.ndarray, box) -> str:

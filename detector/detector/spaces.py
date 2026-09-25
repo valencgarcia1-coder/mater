@@ -5,15 +5,23 @@ they don't move frame to frame) so checking a vehicle against every space
 each frame is a cheap array index, not a full-frame fill per space per
 frame.
 
-Occupancy is decided by a vehicle's ground-contact point (see
-is_occupied_by_point below), not by how much of a vehicle's visible area
-overlaps a space. A parking lot camera routinely can't see a space's full
-area — a nearer row of cars blocks part of the view INTO a space that's
-further back, even though the two vehicles' own detections never overlap
-each other. An area-overlap test needs enough of the *occupying* vehicle
-visible to clear a percentage threshold; a single ground point only needs
-enough of the vehicle visible to localize where it's standing, which
-survives far more of exactly this kind of camera-angle occlusion.
+Occupancy is decided by proximity, not strict containment (see
+closest_space_label below): a stationary vehicle is attributed to whichever
+configured space it's nearest to, not just whichever polygon its point
+happens to fall strictly inside. A parking lot camera routinely can't see a
+space's full area — a nearer row of cars blocks part of the view INTO a
+space that's further back — and hand-drawn polygons are never pixel-perfect
+against where a car actually parks. Requiring literal containment fails in
+both cases; proximity survives them, because a car parked slightly over a
+line or a few pixels outside a slightly-imprecise boundary is still
+obviously closer to its own space than to any other one.
+
+This is deliberately capped by MAX_ASSIGNMENT_DISTANCE: a vehicle stopped in
+a driving aisle, nowhere near any marked space, still has SOME nearest
+space by pure geometry, but that doesn't mean it's parked there. Only
+vehicles already confirmed stationary reach this check at all (see
+pipeline.py) — proximity answers "which space," not "is this vehicle even
+parked."
 """
 
 from __future__ import annotations
@@ -54,24 +62,131 @@ def build_space_masks(spaces: list[SpaceRegion], frame_shape: tuple[int, int]) -
     return cached
 
 
-def is_occupied_by_point(space: _CachedSpace, point: tuple[float, float]) -> bool:
-    """Ground-contact-point test: is a vehicle's footprint on the pavement
-    (its ground point — bottom-center of its detection box) inside this
-    space's polygon.
+MAX_ASSIGNMENT_DISTANCE = 40.0  # pixels — see module docstring; roughly a third of a typical space's width/height
 
-    This is a stricter, more honest question than "does the vehicle's
-    visible area overlap the space enough" — a vehicle is either standing
-    on a space or it isn't, and that's true regardless of how much of its
-    body the camera can actually see. It's also immune to the
-    neighbor-mask-spillover false positive by construction: a single point
-    can only ever land inside one non-overlapping space's polygon at a
-    time, so there's nothing to spill across a shared boundary.
+
+def _distance_to_space(space: _CachedSpace, point: tuple[float, float]) -> float:
+    """Signed distance from a point to a space's polygon boundary, OpenCV's
+    convention: positive when inside (magnitude = depth inside), negative
+    when outside (magnitude = distance to the nearest edge), zero on the
+    boundary itself."""
+    return float(cv2.pointPolygonTest(space.polygon, (float(point[0]), float(point[1])), True))
+
+
+def _nearest_space(spaces: list[_CachedSpace], point: tuple[float, float]) -> tuple[str | None, float]:
+    best_label: str | None = None
+    best_distance = -float("inf")
+    for space in spaces:
+        d = _distance_to_space(space, point)
+        if d > best_distance:
+            best_distance = d
+            best_label = space.label
+    return best_label, best_distance
+
+
+def closest_space_label(spaces: list[_CachedSpace], points: dict[str, tuple[float, float]]) -> str | None:
+    """Which space a stationary vehicle actually occupies, by proximity —
+    see the module docstring for why this replaced strict point-in-polygon
+    containment.
+
+    "ground" is checked FIRST and ALONE, not pooled together with
+    front/back into one combined vote. It's a single stable point (box
+    bottom-center); front/back are the leftmost/rightmost pixel of the
+    vehicle's entire mask, which shifts by several pixels frame to frame as
+    the segmentation boundary's own noise moves — for a vehicle sitting
+    near the line between two spaces, that noise was enough to flip which
+    neighboring space's polygon a front/back point happened to poke into on
+    any given frame. Pooling all three into one global max meant that
+    flicker could occasionally outscore ground's own, actually-consistent
+    answer, so a single physical car would alternately register as two
+    different spaces frame to frame — and since OccupancyDebouncer requires
+    ONE label to hold steady before confirming, a flip-flopping label never
+    confirms either one, which is exactly the "car sitting there but never
+    reads occupied" bug this fixes.
+
+    front/back only get consulted when ground doesn't resolve to any space
+    within tolerance at all — the real fallback case this was designed for
+    (the vehicle's base occluded, see vehicle_reference_points), not a
+    routine second opinion on every frame.
+
+    Returns None if even the closest match is farther than
+    MAX_ASSIGNMENT_DISTANCE — without that cap, a vehicle stopped anywhere
+    in frame (a driving aisle, nowhere near a marked space) would still get
+    force-assigned to whichever space happens to be nearest, however far
+    away that actually is.
     """
-    h, w = space.mask.shape
-    x, y = int(round(point[0])), int(round(point[1]))
-    if not (0 <= x < w and 0 <= y < h):
-        return False
-    return bool(space.mask[y, x])
+    ground_label, ground_distance = _nearest_space(spaces, points["ground"])
+    if ground_distance >= -MAX_ASSIGNMENT_DISTANCE:
+        return ground_label
+
+    best_label: str | None = None
+    best_distance = -float("inf")
+    for key in ("front", "back"):
+        label, distance = _nearest_space(spaces, points[key])
+        if distance > best_distance:
+            best_distance = distance
+            best_label = label
+    if best_distance < -MAX_ASSIGNMENT_DISTANCE:
+        return None
+    return best_label
+
+
+def vehicle_reference_points(
+    box: tuple[float, float, float, float], mask: np.ndarray | None = None
+) -> dict[str, tuple[float, float]]:
+    """Three points describing where a vehicle actually is, not just its
+    detection box: "ground" (bottom-center — the primary occupancy point,
+    see closest_space_label), plus "top", "front", and "back", read off the
+    vehicle's own segmentation mask when one exists.
+
+    front/back exist for one reason: the ground point needs the vehicle's
+    BASE visible to be accurate, and a nearer vehicle occluding the base
+    truncates the detection box's bottom edge, making "ground" land
+    somewhere wrong (often a lane, not the space the car is actually in).
+    front/back only need the vehicle's SIDE visible, which survives that
+    kind of occlusion — see closest_space_label, which checks all three.
+
+    "top" is deliberately NOT used for occupancy at all: at this camera's
+    oblique angle, a roof point's image-space location can correspond to a
+    completely different ground position than the space beneath the
+    vehicle. It exists purely as a visual "a vehicle is here" marker.
+    """
+    x1, y1, x2, y2 = box
+    ground = (float((x1 + x2) / 2), float(y2))
+    top = (float((x1 + x2) / 2), float(y1))
+    front = (float(x1), float((y1 + y2) / 2))
+    back = (float(x2), float((y1 + y2) / 2))
+
+    if mask is not None:
+        ix1, iy1, ix2, iy2 = int(x1), int(y1), int(x2), int(y2)
+        crop = mask[iy1:iy2, ix1:ix2]
+        ys, xs = np.nonzero(crop)
+        if len(xs) > 0:
+            top_i = int(np.argmin(ys))
+            top = (float(ix1 + xs[top_i]), float(iy1 + ys[top_i]))
+            left_i = int(np.argmin(xs))
+            front = (float(ix1 + xs[left_i]), float(iy1 + ys[left_i]))
+            right_i = int(np.argmax(xs))
+            back = (float(ix1 + xs[right_i]), float(iy1 + ys[right_i]))
+
+    return {"ground": ground, "top": top, "front": front, "back": back}
+
+
+REFERENCE_POINT_COLORS = {
+    "top": (255, 255, 255),  # white
+    "front": (255, 255, 0),  # cyan
+    "back": (255, 0, 255),  # magenta
+}
+
+
+def draw_reference_points(frame: np.ndarray, points: dict[str, tuple[float, float]]) -> None:
+    """Small dots marking a vehicle's top/front/back — visual confirmation
+    of what the occupancy fallback in compute_occupancy actually sees, not
+    just a box. "ground" isn't drawn here; it's already implied by the
+    vehicle's box/mask outline drawn elsewhere."""
+    for key in ("top", "front", "back"):
+        x, y = points[key]
+        cv2.circle(frame, (int(round(x)), int(round(y))), 4, REFERENCE_POINT_COLORS[key], -1, cv2.LINE_AA)
 
 
 # Four states, four colors — a merely-parked car shouldn't read as alarming
@@ -107,9 +222,10 @@ def _dashed_polyline(frame: np.ndarray, polygon: np.ndarray, color: tuple, thick
 
 # --- Occlusion hardening -----------------------------------------------
 #
-# is_occupied_by_point already rules out neighbor-mask/box spillover by
-# construction (a single point can't be inside two non-overlapping
-# polygons at once). Two failure modes remain even with a point test:
+# closest_space_label already rules out neighbor-mask/box spillover by
+# construction (each vehicle resolves to a single best-matching space —
+# being clearly inside one space always outscores being merely near a
+# different one). Two failure modes remain even with a proximity test:
 #
 #   1. A spurious detection (a shadow, a reflection, a decal the model
 #      mistakes for a vehicle) can still place a "ground point" inside a
@@ -148,6 +264,16 @@ class SpaceAppearanceModel:
     tightening, not a replacement for it.
     """
 
+    # A vehicle that's been parked for hours gets a brand-new track ID on
+    # every restart, and VelocityTracker needs ~3s of that fresh track's own
+    # history before it calls the vehicle stationary (see velocity.py's
+    # WINDOW_SECONDS) — so detector_occupied can read False for a space
+    # that's very much occupied, purely because tracking just restarted, not
+    # because the space is empty. Refusing to seed any background during
+    # this cold-start window avoids learning that still-parked car as "this
+    # is what empty looks like" a few seconds later than it would otherwise.
+    STARTUP_GRACE_SECONDS = 6.0
+
     def __init__(
         self,
         diff_threshold: float = APPEARANCE_DIFF_THRESHOLD,
@@ -156,8 +282,10 @@ class SpaceAppearanceModel:
         self._diff_threshold = diff_threshold
         self._learning_rate = learning_rate
         self._background: dict[str, np.ndarray] = {}
+        self._started_at = time.time()
 
-    def looks_changed(self, space: _CachedSpace, frame: np.ndarray, detector_occupied: bool) -> bool:
+    def looks_changed(self, space: _CachedSpace, frame: np.ndarray, detector_occupied: bool, now: float | None = None) -> bool:
+        now = now if now is not None else time.time()
         sx1, sy1, sx2, sy2 = space.bbox
         if sx2 <= sx1 or sy2 <= sy1:
             return detector_occupied  # degenerate space geometry; nothing to corroborate against
@@ -170,10 +298,20 @@ class SpaceAppearanceModel:
         background = self._background.get(space.label)
         if background is None or background.shape != patch.shape:
             # No reference yet (first sight, or the space geometry changed
-            # via the live editor) — nothing to compare against, so pass the
-            # detector's own reading through rather than vetoing blind.
+            # via the live editor). Only seed it from a frame the detector
+            # already reads as EMPTY, and only once past the startup grace
+            # window above — a real vehicle is routinely already parked
+            # before this process ever starts, and seeding "empty" from a
+            # frame that already has a motionless car in it would
+            # permanently mistake that car for the background: it never
+            # moves, so every future frame would look "unchanged" and this
+            # model would veto that space's real occupancy forever. Until a
+            # genuinely empty moment gives us something real to compare
+            # against, just pass the detector's own reading through.
+            if detector_occupied or (now - self._started_at) < self.STARTUP_GRACE_SECONDS:
+                return detector_occupied
             self._background[space.label] = patch
-            return detector_occupied
+            return False
 
         changed = bool(np.abs(patch - background)[mask].mean() >= self._diff_threshold)
 
@@ -195,10 +333,19 @@ class _OccupancyStreak:
 class OccupancyDebouncer:
     """Requires a space's raw per-frame occupancy signal to hold for
     CONFIRM_HOLD_SECONDS before treating it as real enough to start that
-    space's clock. Tolerates single missed frames (a momentary occlusion or
-    detection dropout) up to FLICKER_GAP_SECONDS without resetting the
-    streak — the same tolerance ParkingTimers.GRACE_PERIOD_SECONDS already
-    gives the reverse transition (occupied -> empty).
+    space's clock. Tolerates a single missed frame (a momentary detection
+    dropout or a ground point that jitters just outside a polygon) without
+    resetting the streak — the same tolerance ParkingTimers.GRACE_PERIOD_SECONDS
+    already gives the reverse transition (occupied -> empty).
+
+    The flicker tolerance is measured in observed *frames*, not a fixed
+    wall-clock guess: this pipeline's real processing rate is CPU-bound
+    (YOLO inference), not the camera's nominal configured fps, and a
+    constant tuned for one assumed rate silently stops bridging anything
+    the moment the real rate is slower than expected — a single missed
+    frame at 2fps is already a ~0.5s gap, close enough to swallow a fixed
+    guess whole. Tracking the actual inter-call interval keeps the
+    tolerance meaningful regardless of hardware or stream load.
 
     This only delays the *first* tick of a genuine parking event by about a
     second and a half; it does not touch the violation/tow thresholds after
@@ -206,44 +353,72 @@ class OccupancyDebouncer:
     """
 
     CONFIRM_HOLD_SECONDS = 1.5
-    FLICKER_GAP_SECONDS = 0.75
+    MIN_FLICKER_GAP_SECONDS = 0.75  # floor, in case the interval estimate hasn't settled yet
+    FLICKER_GAP_FRAME_MULTIPLE = 3  # tolerate ~3 missed frames' worth of gap
 
-    def __init__(self, confirm_hold: float = CONFIRM_HOLD_SECONDS, flicker_gap: float = FLICKER_GAP_SECONDS) -> None:
+    def __init__(self, confirm_hold: float = CONFIRM_HOLD_SECONDS, min_flicker_gap: float = MIN_FLICKER_GAP_SECONDS) -> None:
         self._confirm_hold = confirm_hold
-        self._flicker_gap = flicker_gap
+        self._min_flicker_gap = min_flicker_gap
         self._streaks: dict[str, _OccupancyStreak] = {}
+        self._last_call_at: float | None = None
+        self._frame_interval_estimate = min_flicker_gap / self.FLICKER_GAP_FRAME_MULTIPLE
 
     def update(self, raw_occupancy: dict[str, bool], now: float | None = None) -> dict[str, bool]:
         now = now if now is not None else time.time()
+        if self._last_call_at is not None and now > self._last_call_at:
+            # Exponential moving average of the real per-call interval —
+            # smooths over one-off slow frames without chasing every jitter.
+            dt = now - self._last_call_at
+            alpha = 0.2
+            self._frame_interval_estimate = (1 - alpha) * self._frame_interval_estimate + alpha * dt
+        self._last_call_at = now
+        flicker_gap = max(self._min_flicker_gap, self.FLICKER_GAP_FRAME_MULTIPLE * self._frame_interval_estimate)
+
         confirmed: dict[str, bool] = {}
         for label, occupied in raw_occupancy.items():
             streak = self._streaks.get(label)
             if occupied:
-                if streak is None or now - streak.last_true_at > self._flicker_gap:
+                if streak is None or now - streak.last_true_at > flicker_gap:
                     streak = _OccupancyStreak(started_at=now, last_true_at=now)
                     self._streaks[label] = streak
                 else:
                     streak.last_true_at = now
-                confirmed[label] = (now - streak.started_at) >= self._confirm_hold
-            else:
-                # Keep the streak alive through a single missed frame (the
-                # next true reading re-checks the gap above) — only drop it
-                # once it's aged out, so long-empty spaces don't leak memory.
-                if streak is not None and now - streak.last_true_at > self._flicker_gap:
-                    del self._streaks[label]
-                confirmed[label] = False
+            elif streak is not None and now - streak.last_true_at > flicker_gap:
+                # Only drop the streak once the gap since its last TRUE
+                # reading has actually aged past tolerance — note this is
+                # unaffected by how many False readings came in between, so
+                # a single missed frame doesn't compound against a stale
+                # last_true_at the way it would if we bumped it on misses.
+                del self._streaks[label]
+                streak = None
+            # Confirmed status is a property of the STREAK, not of this
+            # frame's raw reading in isolation. A ground-point test is far
+            # more binary than the old area-overlap check was — a single
+            # frame's box jitter can flip a point in/out of a polygon even
+            # for a car that's been sitting still for minutes — so a streak
+            # that has already survived the flicker tolerance must keep
+            # reading as occupied through that same brief gap, not just
+            # internally remember to not reset its clock. Without this, a
+            # single missed frame reported "empty" for that frame despite
+            # the streak surviving underneath, which is exactly the kind of
+            # momentary blip this class exists to absorb.
+            confirmed[label] = streak is not None and (now - streak.started_at) >= self._confirm_hold
         return confirmed
 
 
 def compute_occupancy(
     spaces: list[_CachedSpace],
-    ground_points: list[tuple[float, float]],
+    vehicle_points: list[dict[str, tuple[float, float]]],
     frame: np.ndarray | None = None,
     appearance_model: SpaceAppearanceModel | None = None,
 ) -> dict[str, bool]:
+    occupied_labels = {
+        label for label in (closest_space_label(spaces, points) for points in vehicle_points) if label is not None
+    }
+
     occupancy: dict[str, bool] = {}
     for space in spaces:
-        detector_occupied = any(is_occupied_by_point(space, pt) for pt in ground_points)
+        detector_occupied = space.label in occupied_labels
 
         if frame is not None and appearance_model is not None:
             changed = appearance_model.looks_changed(space, frame, detector_occupied)

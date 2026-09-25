@@ -26,6 +26,7 @@ from flask_cors import CORS
 
 from detector.config import CameraConfig, SpaceRegion
 from detector.pipeline import DetectionPipeline
+from detector.vision_labeler import VisionLabeler
 
 log = logging.getLogger(__name__)
 
@@ -429,9 +430,9 @@ class LiveFeed:
     """Owns the pipeline and the single latest annotated JPEG, produced by
     one background thread and read by any number of HTTP clients."""
 
-    def __init__(self, config: CameraConfig, read_plates: bool) -> None:
+    def __init__(self, config: CameraConfig, read_plates: bool, vision_labeler: VisionLabeler | None = None) -> None:
         self.config = config
-        self.pipeline = DetectionPipeline(config, read_plates=read_plates)
+        self.pipeline = DetectionPipeline(config, read_plates=read_plates, vision_labeler=vision_labeler)
         self._lock = threading.Lock()
         self._latest_jpeg: bytes | None = None
         self._latest_raw_jpeg: bytes | None = None  # unannotated, for the space editor
@@ -487,7 +488,12 @@ class LiveFeed:
             }
 
 
-def create_app(config: CameraConfig, read_plates: bool = True, spaces_file: str = "spaces.yaml") -> Flask:
+def create_app(
+    config: CameraConfig,
+    read_plates: bool = True,
+    spaces_file: str = "spaces.yaml",
+    vision_labeler: VisionLabeler | None = None,
+) -> Flask:
     app = Flask(__name__)
     # The dashboard (a separate Next.js dev server, different origin) needs
     # to call these APIs directly from the browser.
@@ -495,7 +501,7 @@ def create_app(config: CameraConfig, read_plates: bool = True, spaces_file: str 
     # and enumerating routes here is just something to forget to update the
     # next time an endpoint is added.
     CORS(app, resources={r"/*": {"origins": "*"}})
-    feed = LiveFeed(config, read_plates=read_plates)
+    feed = LiveFeed(config, read_plates=read_plates, vision_labeler=vision_labeler)
     feed.start()
 
     @app.route("/")
@@ -636,6 +642,15 @@ def main() -> None:
     parser.add_argument("--no-plates", action="store_true")
     parser.add_argument("--spaces-file", default="spaces.yaml", help="where the /editor page saves numbered spaces")
     parser.add_argument("--port", type=int, default=5050)
+    # Off unless explicitly asked for: bootstraps a labeled occupancy
+    # dataset by periodically sending each space's crop to a vision model
+    # (see vision_labeler.py). Makes real, billed API calls — needs
+    # ANTHROPIC_API_KEY set in the environment.
+    parser.add_argument("--enable-vision-labeling", action="store_true")
+    parser.add_argument(
+        "--vision-label-interval", type=float, default=90.0, help="seconds between API calls, PER SPACE"
+    )
+    parser.add_argument("--vision-label-dataset-dir", default="training_data")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -658,7 +673,19 @@ def main() -> None:
     if saved_spaces:
         config.spaces = saved_spaces
 
-    app = create_app(config, read_plates=not args.no_plates, spaces_file=args.spaces_file)
+    vision_labeler = None
+    if args.enable_vision_labeling:
+        vision_labeler = VisionLabeler(
+            dataset_dir=args.vision_label_dataset_dir,
+            interval_seconds=args.vision_label_interval,
+        )
+        log.info(
+            "vision labeling enabled: 1 space every %.0fs -> %s",
+            args.vision_label_interval,
+            args.vision_label_dataset_dir,
+        )
+
+    app = create_app(config, read_plates=not args.no_plates, spaces_file=args.spaces_file, vision_labeler=vision_labeler)
     app.run(host="127.0.0.1", port=args.port, threaded=True)
 
 
