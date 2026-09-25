@@ -9,13 +9,13 @@ export default function Footer() {
           <a
             key={label}
             href={`#${label.toLowerCase()}`}
-            className="text-sm text-white/50 transition-colors hover:text-white"
+            className="font-mono text-xs uppercase tracking-wider text-white/50 transition-colors hover:text-white"
           >
             {label}
           </a>
         ))}
       </nav>
-      <p className="mt-8 text-xs text-white/30">© 2026 Mater</p>
+      <p className="mt-8 font-mono text-xs uppercase tracking-wider text-white/30">© 2026 Mater</p>
     </footer>
   );
 }

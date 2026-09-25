@@ -24,7 +24,7 @@ export default function VerifySection() {
           ))}
         </div>
         <div className="order-1 md:order-2">
-          <p className="text-xs font-medium tracking-[0.25em] text-white/40">02 · VERIFY</p>
+          <p className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">02 · VERIFY</p>
           <h2 className="mt-4 font-serif text-5xl font-semibold text-white">Time it.</h2>
           <p className="mt-5 max-w-sm text-white/60">
             A vehicle isn&apos;t a tow simply because it&apos;s there. Mater understands location,

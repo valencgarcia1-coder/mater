@@ -12,7 +12,7 @@ export default function DetectSection() {
     <SectionReveal className="mx-auto w-full max-w-6xl px-8 py-28 sm:px-12">
       <div className="grid gap-12 md:grid-cols-2 md:items-center">
         <div>
-          <p className="text-xs font-medium tracking-[0.25em] text-white/40">01 · DETECT</p>
+          <p className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">01 · DETECT</p>
           <h2 className="mt-4 font-serif text-5xl font-semibold text-white">See it.</h2>
           <p className="mt-5 max-w-sm text-white/60">
             Mater watches the environment and identifies vehicles automatically.

@@ -16,10 +16,12 @@ export default function HeroVisual() {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (video.error || video.networkState === video.NETWORK_NO_SOURCE) {
-      setVideoFailed(true);
-      return;
-    }
+    // Only the real "error" event counts as failure — checking
+    // video.networkState synchronously here is racy: on a fast client-side
+    // remount (e.g. navigating back from /dashboard), the browser hasn't
+    // necessarily started resolving the source yet, and a transient
+    // NETWORK_NO_SOURCE reading would falsely trigger the fallback even
+    // though the video goes on to load fine.
     const handleError = () => setVideoFailed(true);
     video.addEventListener("error", handleError);
     return () => video.removeEventListener("error", handleError);

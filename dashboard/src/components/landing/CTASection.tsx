@@ -1,5 +1,5 @@
-import Link from "next/link";
 import SectionReveal from "./SectionReveal";
+import GetStartedButton from "./GetStartedButton";
 
 export default function CTASection() {
   return (
@@ -10,12 +10,7 @@ export default function CTASection() {
       <p className="mt-5 text-white/60">
         Mater automates the work between detection and dispatch.
       </p>
-      <Link
-        href="/dashboard"
-        className="mt-9 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-black transition-transform hover:scale-[1.03]"
-      >
-        Get started <span aria-hidden="true">→</span>
-      </Link>
+      <GetStartedButton className="mt-9 mx-auto w-fit font-semibold" />
     </SectionReveal>
   );
 }
