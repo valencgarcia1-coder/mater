@@ -130,13 +130,13 @@ export default function LiveFeed() {
       <div
         ref={containerRef}
         onClick={handleContainerClick}
-        className={`relative overflow-hidden rounded-lg border border-neutral-800 bg-black ${
+        className={`relative overflow-hidden rounded-2xl border border-white/10 bg-black ${
           editing ? "cursor-crosshair" : ""
         }`}
       >
-        <div className="absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-medium text-neutral-200 backdrop-blur">
+        <div className="absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-black/70 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-white/80 backdrop-blur">
           <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
-          LIVE
+          Live
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element -- MJPEG multipart stream, not a static image Next's optimizer can handle */}
         <img
@@ -188,24 +188,24 @@ export default function LiveFeed() {
       </div>
 
       {editing && !naturalSize && (
-        <p className="text-xs text-amber-400">
+        <p className="font-mono text-xs text-amber-400">
           Waiting on the video stream before clicks can be placed — give it a second.
         </p>
       )}
 
       {editing && loadStatus === "loading" && (
-        <p className="text-xs text-neutral-500">Loading existing spaces…</p>
+        <p className="font-mono text-xs text-white/40">Loading existing spaces…</p>
       )}
 
       {editing && loadStatus === "error" && (
-        <div className="flex items-center gap-2 rounded-md border border-red-800 bg-red-950/30 px-3 py-2 text-xs text-red-400">
+        <div className="flex items-center gap-2 rounded-xl border border-red-800 bg-red-950/30 px-3 py-2 text-xs text-red-400">
           <span>
             Couldn&apos;t load the existing spaces from the detector — saving is disabled until this
             succeeds, so nothing gets overwritten by accident.
           </span>
           <button
             onClick={loadSpaces}
-            className="shrink-0 rounded border border-red-700 px-2 py-1 hover:bg-red-950/60"
+            className="shrink-0 rounded-full border border-red-700 px-3 py-1 font-mono text-[11px] uppercase tracking-wider hover:bg-red-950/60"
           >
             Retry
           </button>
@@ -213,8 +213,8 @@ export default function LiveFeed() {
       )}
 
       {editing && (
-        <div className="flex flex-col gap-2 rounded-lg border border-neutral-800 bg-neutral-950 p-3">
-          <p className="text-xs text-neutral-500">
+        <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="text-xs font-light text-white/50">
             Click corners on the live feed above (3+ points), pick a zone, then &quot;Finish
             space&quot;. Nothing changes on the detector until you hit Save.
           </p>
@@ -222,10 +222,10 @@ export default function LiveFeed() {
             <select
               value={zone}
               onChange={(e) => setZone(e.target.value as Zone)}
-              className="rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-200"
+              className="rounded-full border border-white/15 bg-white/[0.03] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-white/70"
             >
               {ZONES.map((z) => (
-                <option key={z} value={z}>
+                <option key={z} value={z} className="bg-black">
                   {z}
                 </option>
               ))}
@@ -233,21 +233,21 @@ export default function LiveFeed() {
             <button
               onClick={finishSpace}
               disabled={current.length < 3}
-              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200 hover:bg-neutral-800 disabled:opacity-40"
+              className="rounded-full border border-white/15 bg-white/[0.03] px-4 py-1.5 font-mono text-[11px] uppercase tracking-wider text-white/70 hover:border-white/30 hover:text-white disabled:opacity-40"
             >
               Finish space
             </button>
             <button
               onClick={() => setCurrent((c) => c.slice(0, -1))}
               disabled={current.length === 0}
-              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200 hover:bg-neutral-800 disabled:opacity-40"
+              className="rounded-full border border-white/15 bg-white/[0.03] px-4 py-1.5 font-mono text-[11px] uppercase tracking-wider text-white/70 hover:border-white/30 hover:text-white disabled:opacity-40"
             >
               Undo point
             </button>
             <button
               onClick={() => setCurrent([])}
               disabled={current.length === 0}
-              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200 hover:bg-neutral-800 disabled:opacity-40"
+              className="rounded-full border border-white/15 bg-white/[0.03] px-4 py-1.5 font-mono text-[11px] uppercase tracking-wider text-white/70 hover:border-white/30 hover:text-white disabled:opacity-40"
             >
               Clear current
             </button>
@@ -255,25 +255,37 @@ export default function LiveFeed() {
               onClick={handleSave}
               disabled={loadStatus !== "loaded"}
               title={loadStatus !== "loaded" ? "Waiting on the existing spaces to load first" : undefined}
-              className="rounded-md border border-blue-700 bg-blue-950/50 px-3 py-1.5 text-xs font-medium text-blue-300 hover:bg-blue-950/80 disabled:opacity-40 disabled:hover:bg-blue-950/50"
+              className="rounded-full border border-blue-700 bg-blue-950/50 px-4 py-1.5 font-mono text-[11px] uppercase tracking-wider text-blue-300 hover:bg-blue-950/80 disabled:opacity-40 disabled:hover:bg-blue-950/50"
             >
               Save
             </button>
-            {saveStatus === "saving" && <span className="text-xs text-neutral-500">saving…</span>}
-            {saveStatus === "saved" && <span className="text-xs text-emerald-400">saved ✓</span>}
-            {saveStatus === "error" && <span className="text-xs text-red-400">save failed</span>}
+            {saveStatus === "saving" && (
+              <span className="font-mono text-[11px] uppercase tracking-wider text-white/40">
+                saving…
+              </span>
+            )}
+            {saveStatus === "saved" && (
+              <span className="font-mono text-[11px] uppercase tracking-wider text-emerald-400">
+                saved ✓
+              </span>
+            )}
+            {saveStatus === "error" && (
+              <span className="font-mono text-[11px] uppercase tracking-wider text-red-400">
+                save failed
+              </span>
+            )}
           </div>
           {spaces.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-1">
               {spaces.map((s) => (
                 <span
                   key={s.label}
-                  className="flex items-center gap-1.5 rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-[11px] text-neutral-300"
+                  className="flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.03] px-3 py-1 font-mono text-[11px] text-white/60"
                 >
                   P{s.label} ({s.zone})
                   <button
                     onClick={() => removeSpace(s.label)}
-                    className="text-neutral-500 hover:text-red-400"
+                    className="text-white/40 hover:text-red-400"
                     aria-label={`Remove space ${s.label}`}
                   >
                     ×
@@ -287,10 +299,10 @@ export default function LiveFeed() {
 
       <button
         onClick={() => setEditing((v) => !v)}
-        className={`self-start rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+        className={`self-start rounded-full border px-4 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors ${
           editing
             ? "border-amber-700 bg-amber-950/50 text-amber-400 hover:bg-amber-950/80"
-            : "border-neutral-700 bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
+            : "border-white/15 bg-white/[0.03] text-white/50 hover:border-white/30 hover:text-white/80"
         }`}
       >
         {editing ? "Done editing spaces" : "Adjust parking spaces"}

@@ -23,9 +23,9 @@ export default function SpaceGrid({ spaces }: { spaces: SpacesStatus }) {
 
   if (labels.length === 0) {
     return (
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm font-light text-white/40">
         No spaces configured yet — number them at the detector&apos;s{" "}
-        <code className="text-neutral-400">/editor</code> page.
+        <code className="font-mono text-white/60">/editor</code> page.
       </p>
     );
   }

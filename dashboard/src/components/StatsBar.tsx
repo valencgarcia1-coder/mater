@@ -2,11 +2,11 @@ import type { DetectorStatus, SpacesStatus } from "@/lib/detector";
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+    <div className="flex flex-col gap-1">
+      <span className="font-mono text-[10px] uppercase tracking-wider text-white/40">
         {label}
       </span>
-      <span className="font-mono text-lg text-neutral-100">{value}</span>
+      <span className="font-mono text-lg text-white">{value}</span>
     </div>
   );
 }
@@ -27,7 +27,7 @@ export default function StatsBar({
   );
 
   return (
-    <div className="flex flex-wrap gap-6 rounded-lg border border-neutral-800 bg-neutral-950 px-4 py-3">
+    <div className="flex flex-wrap gap-6 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
       <Stat label="Active tracks" value={status?.active_tracks ?? "—"} />
       <Stat
         label="FPS"

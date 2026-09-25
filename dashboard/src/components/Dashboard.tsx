@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   getEvents,
   getSpacesStatus,
@@ -52,22 +53,21 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-black text-sm font-bold">
-            M
-          </div>
+    <div className="flex flex-col gap-8">
+      <header className="flex items-center justify-between border-b border-white/10 pb-6">
+        <Link href="/" className="flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/mater-mark.svg" alt="Mater" className="h-7 w-auto" />
           <div>
-            <h1 className="text-sm font-semibold tracking-tight text-neutral-100">
-              Mater
-            </h1>
-            <p className="text-xs text-neutral-500">Live lot operations</p>
+            <h1 className="font-serif text-lg text-white">Mater</h1>
+            <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">
+              Live lot operations
+            </p>
           </div>
-        </div>
-        <div className="flex items-center gap-1.5 text-xs text-neutral-400">
+        </Link>
+        <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-white/50">
           <span
-            className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-emerald-500" : "bg-neutral-600"}`}
+            className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-emerald-500" : "bg-white/20"}`}
           />
           {connected ? "Connected to detector" : "Connecting…"}
         </div>
@@ -80,19 +80,19 @@ export default function Dashboard() {
           <StatsBar status={status} spaces={spaces} />
         </div>
 
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+        <div className="flex flex-col gap-3">
+          <h2 className="font-mono text-[11px] uppercase tracking-wider text-white/40">
             Spaces
           </h2>
           <SpaceGrid spaces={spaces} />
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <h2 className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+      <div className="flex flex-col gap-3">
+        <h2 className="font-mono text-[11px] uppercase tracking-wider text-white/40">
           Recent activity
         </h2>
-        <div className="rounded-lg border border-neutral-800 bg-neutral-950 px-4 py-2">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2">
           <EventLog events={events} />
         </div>
       </div>

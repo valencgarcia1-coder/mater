@@ -41,10 +41,10 @@ export default function ToggleButtons() {
             key={key}
             onClick={() => flip(key)}
             disabled={!toggles}
-            className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+            className={`rounded-full border px-4 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors disabled:opacity-50 ${
               on
                 ? "border-emerald-700 bg-emerald-950/50 text-emerald-400 hover:bg-emerald-950/70"
-                : "border-neutral-700 bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
+                : "border-white/15 bg-white/[0.03] text-white/50 hover:border-white/30 hover:text-white/80"
             }`}
           >
             {label}: {toggles ? (on ? "On" : "Off") : "…"}

@@ -6,11 +6,11 @@ const STATE_STYLES: Record<
 > = {
   empty: {
     label: "Available",
-    classes: "border-neutral-800 bg-neutral-950 text-neutral-600",
+    classes: "border-white/10 bg-white/[0.03] text-white/40",
   },
   arriving: {
     label: "Arriving",
-    classes: "border-neutral-600 bg-neutral-900 text-neutral-300",
+    classes: "border-white/20 bg-white/[0.05] text-white/70",
   },
   parked: {
     label: "Parked",
@@ -46,18 +46,18 @@ export default function SpaceCard({
   const style = STATE_STYLES[status.state];
   return (
     <div
-      className={`rounded-lg border px-3 py-2.5 flex flex-col gap-0.5 transition-colors ${style.classes}`}
+      className={`rounded-xl border px-3 py-2.5 flex flex-col gap-0.5 transition-colors ${style.classes}`}
     >
       <div className="flex items-baseline justify-between">
-        <span className="font-mono text-sm font-medium">P{label}</span>
+        <span className="font-mono text-sm">P{label}</span>
         {status.zone !== "standard" && (
-          <span className="text-[10px] uppercase tracking-wide opacity-70">
+          <span className="font-mono text-[10px] uppercase tracking-wider opacity-70">
             {status.zone.replace("_", " ")}
           </span>
         )}
       </div>
       <div className="flex items-baseline justify-between">
-        <span className="text-xs">{style.label}</span>
+        <span className="font-mono text-[11px] uppercase tracking-wide">{style.label}</span>
         {status.elapsed !== null && (
           <span className="font-mono text-xs opacity-80">
             {formatDuration(status.elapsed)}
