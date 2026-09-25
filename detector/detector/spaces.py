@@ -266,6 +266,12 @@ def zone_by_label(spaces: list[_CachedSpace]) -> dict[str, str]:
     return {space.label: space.zone for space in spaces}
 
 
+def _rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
+    ax1, ay1, ax2, ay2 = a
+    bx1, by1, bx2, by2 = b
+    return ax1 < bx2 and ax2 > bx1 and ay1 < by2 and ay2 > by1
+
+
 def draw_spaces(
     frame: np.ndarray,
     spaces: list[_CachedSpace],
@@ -273,6 +279,17 @@ def draw_spaces(
     status_by_label: dict[str, SpaceStatus] | None = None,
 ) -> np.ndarray:
     status_by_label = status_by_label or {}
+    h, _w = frame.shape[:2]
+    # Adjacent stalls' default label position (a fixed offset from each
+    # space's own bbox) can collide when spaces sit close together on
+    # screen, even though the spaces themselves don't overlap — the vehicle
+    # label_annotator up in pipeline.py already solves this with
+    # smart_position=True; space labels never got the same treatment, so a
+    # crowded row spliced two/three states into one unreadable mess.
+    # Tracking placed label rects here and nudging a collision straight
+    # down (bounded, so we never search forever) gives spaces the same
+    # guarantee: every label stays fully legible on its own.
+    placed_label_rects: list[tuple[int, int, int, int]] = []
     for space in spaces:
         status = status_by_label.get(space.label)
         state = status.state if (status and occupancy[space.label]) else SpaceState.EMPTY
@@ -295,8 +312,19 @@ def draw_spaces(
             text += f" {state.upper()}"
         if status and status.elapsed is not None:
             text += f" [{format_duration(status.elapsed)}]"
-        origin = (int(space.bbox[0]) + 6, int(space.bbox[1]) + 22)
+        origin_x, origin_y = int(space.bbox[0]) + 6, int(space.bbox[1]) + 22
         (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-        cv2.rectangle(frame, (origin[0] - 4, origin[1] - th - 6), (origin[0] + tw + 4, origin[1] + 4), (0, 0, 0), -1)
-        cv2.putText(frame, text, origin, cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2, cv2.LINE_AA)
+
+        step = th + 10
+        for _ in range(6):  # bounded nudge, not an unbounded search for free space
+            rect = (origin_x - 4, origin_y - th - 6, origin_x + tw + 4, origin_y + 4)
+            if not any(_rects_overlap(rect, placed) for placed in placed_label_rects):
+                break
+            origin_y += step
+        origin_y = min(origin_y, h - 4)  # stay on-screen even after nudging past the frame edge
+        rect = (origin_x - 4, origin_y - th - 6, origin_x + tw + 4, origin_y + 4)
+        placed_label_rects.append(rect)
+
+        cv2.rectangle(frame, (rect[0], rect[1]), (rect[2], rect[3]), (0, 0, 0), -1)
+        cv2.putText(frame, text, (origin_x, origin_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2, cv2.LINE_AA)
     return frame
