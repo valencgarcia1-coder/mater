@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import {
   getEvents,
   getSpacesStatus,
@@ -10,11 +9,14 @@ import {
   type DetectorStatus,
   type SpacesStatus,
 } from "@/lib/detector";
-import LiveFeed from "./LiveFeed";
-import StatsBar from "./StatsBar";
+import TopBar from "./dashboard/TopBar";
+import Sidebar from "./dashboard/Sidebar";
+import StatCards from "./dashboard/StatCards";
+import CameraPanel from "./dashboard/CameraPanel";
+import ActivityPanel from "./dashboard/ActivityPanel";
+import SpaceDetailTabs from "./dashboard/SpaceDetailTabs";
+import CameraGrid from "./dashboard/CameraGrid";
 import SpaceGrid from "./SpaceGrid";
-import EventLog from "./EventLog";
-import ToggleButtons from "./ToggleButtons";
 
 const POLL_MS = 1500;
 
@@ -23,6 +25,7 @@ export default function Dashboard() {
   const [spaces, setSpaces] = useState<SpacesStatus>({});
   const [events, setEvents] = useState<DetectorEvent[]>([]);
   const [connected, setConnected] = useState(false);
+  const [selectedSpace, setSelectedSpace] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,49 +55,37 @@ export default function Dashboard() {
     };
   }, []);
 
+  const violationCount = Object.values(spaces).filter(
+    (s) => s.state === "violation" || s.state === "tow_eligible",
+  ).length;
+
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex items-center justify-between border-b border-white/10 pb-6">
-        <Link href="/" className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/mater-mark.svg" alt="Mater" className="h-7 w-auto" />
-          <div>
-            <h1 className="font-serif text-lg text-white">Mater</h1>
-            <p className="font-mono text-[10px] uppercase tracking-wider text-white/40">
-              Live lot operations
-            </p>
+    <div className="flex h-screen flex-col bg-black text-white">
+      <TopBar connected={connected} />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar violationCount={violationCount} connected={connected} />
+        <main className="flex-1 overflow-y-auto p-6">
+          <div className="flex flex-col gap-6">
+            <StatCards status={status} spaces={spaces} />
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <div className="flex flex-col gap-6 lg:col-span-2">
+                <CameraPanel status={status} />
+                <SpaceDetailTabs spaces={spaces} selected={selectedSpace} />
+              </div>
+              <ActivityPanel events={events} />
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <h2 className="font-mono text-[11px] uppercase tracking-wider text-white/40">
+                Spaces
+              </h2>
+              <SpaceGrid spaces={spaces} selected={selectedSpace} onSelect={setSelectedSpace} />
+            </div>
+
+            <CameraGrid connected={connected} />
           </div>
-        </Link>
-        <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-white/50">
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-emerald-500" : "bg-white/20"}`}
-          />
-          {connected ? "Connected to detector" : "Connecting…"}
-        </div>
-      </header>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 flex flex-col gap-4">
-          <ToggleButtons />
-          <LiveFeed />
-          <StatsBar status={status} spaces={spaces} />
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <h2 className="font-mono text-[11px] uppercase tracking-wider text-white/40">
-            Spaces
-          </h2>
-          <SpaceGrid spaces={spaces} />
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <h2 className="font-mono text-[11px] uppercase tracking-wider text-white/40">
-          Recent activity
-        </h2>
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2">
-          <EventLog events={events} />
-        </div>
+        </main>
       </div>
     </div>
   );

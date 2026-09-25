@@ -12,7 +12,15 @@ const STATE_ORDER: SpaceState[] = [
   "empty",
 ];
 
-export default function SpaceGrid({ spaces }: { spaces: SpacesStatus }) {
+export default function SpaceGrid({
+  spaces,
+  selected,
+  onSelect,
+}: {
+  spaces: SpacesStatus;
+  selected?: string | null;
+  onSelect?: (label: string) => void;
+}) {
   const labels = Object.keys(spaces).sort((a, b) => {
     const rank =
       STATE_ORDER.indexOf(spaces[a].state) -
@@ -33,7 +41,13 @@ export default function SpaceGrid({ spaces }: { spaces: SpacesStatus }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
       {labels.map((label) => (
-        <SpaceCard key={label} label={label} status={spaces[label]} />
+        <SpaceCard
+          key={label}
+          label={label}
+          status={spaces[label]}
+          selected={selected === label}
+          onSelect={onSelect ? () => onSelect(label) : undefined}
+        />
       ))}
     </div>
   );

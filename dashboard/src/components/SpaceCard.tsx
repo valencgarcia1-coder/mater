@@ -1,6 +1,6 @@
 import type { SpaceStatus } from "@/lib/detector";
 
-const STATE_STYLES: Record<
+export const STATE_STYLES: Record<
   SpaceStatus["state"],
   { label: string; classes: string }
 > = {
@@ -26,7 +26,7 @@ const STATE_STYLES: Record<
   },
 };
 
-function formatDuration(seconds: number): string {
+export function formatDuration(seconds: number): string {
   const total = Math.floor(seconds);
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
@@ -39,14 +39,21 @@ function formatDuration(seconds: number): string {
 export default function SpaceCard({
   label,
   status,
+  selected,
+  onSelect,
 }: {
   label: string;
   status: SpaceStatus;
+  selected?: boolean;
+  onSelect?: () => void;
 }) {
   const style = STATE_STYLES[status.state];
   return (
     <div
-      className={`rounded-xl border px-3 py-2.5 flex flex-col gap-0.5 transition-colors ${style.classes}`}
+      onClick={onSelect}
+      className={`rounded-xl border px-3 py-2.5 flex flex-col gap-0.5 transition-colors ${style.classes} ${
+        onSelect ? "cursor-pointer" : ""
+      } ${selected ? "ring-2 ring-white/60" : ""}`}
     >
       <div className="flex items-baseline justify-between">
         <span className="font-mono text-sm">P{label}</span>
