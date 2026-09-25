@@ -10,6 +10,8 @@ detector/.toolchain/
 *.avi
 *.mov
 *.mkv
+# ...except the landing page's own hero video, which is a real site asset
+!dashboard/public/hero.mp4
 detector/*.pt
 detector/eval/clips/
 detector/eval/results/
