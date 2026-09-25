@@ -30,7 +30,14 @@ from detector.config import VEHICLE_CLASSES, CameraConfig, SpaceRegion
 from detector.identity_confidence import compute_crowded_flags
 from detector.parking_timers import ParkingTimers
 from detector.plate import PlateRead, PlateReader
-from detector.spaces import build_space_masks, compute_occupancy, draw_spaces, zone_by_label
+from detector.spaces import (
+    OccupancyDebouncer,
+    SpaceAppearanceModel,
+    build_space_masks,
+    compute_occupancy,
+    draw_spaces,
+    zone_by_label,
+)
 from detector.velocity import STATIONARY_SPEED_M_PER_SEC, STATIONARY_SPEED_PX_PER_SEC, VelocityTracker
 from detector.video_source import frames
 
@@ -62,6 +69,14 @@ class DetectionPipeline:
         threshold = STATIONARY_SPEED_M_PER_SEC if self.calibration.is_calibrated else STATIONARY_SPEED_PX_PER_SEC
         self.velocity_tracker = VelocityTracker(stationary_threshold=threshold)
         self.class_smoother = ClassSmoother()
+        # Occlusion hardening (see spaces.py): corroborates a detector-
+        # positive space reading against that space's own pixels, and
+        # requires the combined signal to hold briefly before it's trusted
+        # enough to start a space's clock. Per-process, in-memory state,
+        # same as velocity_tracker/class_smoother above — nothing here needs
+        # to survive a restart the way parking_timers' clocks do.
+        self.appearance_model = SpaceAppearanceModel()
+        self.occupancy_debouncer = OccupancyDebouncer()
         self.model = YOLO(config.model)
         self.tracker = sv.ByteTrack(
             # This is ByteTrack's actual point, and we were bypassing it: a
@@ -221,7 +236,19 @@ class DetectionPipeline:
             stationary_masks = None
             if detections.mask is not None:
                 stationary_masks = [m for m, st in zip(detections.mask, stationary) if st]
-            occupancy = compute_occupancy(self._cached_spaces, stationary_boxes, masks=stationary_masks)
+            occupancy = compute_occupancy(
+                self._cached_spaces,
+                stationary_boxes,
+                masks=stationary_masks,
+                frame=frame,
+                appearance_model=self.appearance_model,
+            )
+            # Confirmed, not raw: a space only counts toward the parking
+            # clock (and the overlay below) once the corroborated signal has
+            # held for OccupancyDebouncer.CONFIRM_HOLD_SECONDS — see
+            # spaces.py for why the raw per-frame reading alone isn't
+            # trustworthy enough to start that clock.
+            occupancy = self.occupancy_debouncer.update(occupancy)
             zones = zone_by_label(self._cached_spaces)
             occupied_zones = {label: zones[label] for label, occ in occupancy.items() if occ}
             status_by_label = self.parking_timers.update(occupied_zones)

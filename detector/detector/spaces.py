@@ -8,6 +8,7 @@ fill per space per frame.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 
 import cv2
@@ -110,17 +111,154 @@ def _dashed_polyline(frame: np.ndarray, polygon: np.ndarray, color: tuple, thick
             cv2.line(frame, tuple(start), tuple(end), color, thickness, cv2.LINE_AA)
 
 
+# --- Occlusion hardening -----------------------------------------------
+#
+# The overlap checks above only reason about a DETECTED VEHICLE's box/mask
+# against a space's polygon. That geometry breaks in two directions when
+# cars sit close together or pass in front of each other:
+#
+#   1. A car legitimately parked in space A can have its mask (or a looser
+#      box, if no -seg model) spill across the shared boundary into space
+#      B's polygon enough to cross OCCUPIED_OVERLAP_THRESHOLD there too —
+#      B reads occupied despite nothing being in it.
+#   2. A single frame where a vehicle happens to overlap a space (a car
+#      briefly cutting through, a momentary segmentation glitch) reads
+#      exactly the same as a car settling in to park, because occupancy is
+#      decided fresh every frame with no memory of how long it's held.
+#
+# SpaceAppearanceModel addresses (1) by corroborating a detector-positive
+# reading against the space's own pixels. OccupancyDebouncer addresses (2)
+# by requiring a positive reading to hold for a short window before it's
+# trusted enough to hand to ParkingTimers (which already tolerates brief
+# gaps in the *other* direction via GRACE_PERIOD_SECONDS).
+
+APPEARANCE_DIFF_THRESHOLD = 18.0  # mean abs grayscale diff (0-255) read as "changed"
+APPEARANCE_LEARNING_RATE = 0.02  # background adaptation rate while confidently empty
+
+
+class SpaceAppearanceModel:
+    """Per-space background-patch corroboration for the geometry-based
+    occupancy check. While a space reads empty (per the detector) and its
+    own patch is stable, this keeps a running average of what "empty" looks
+    like there. A detector-positive reading is only trusted if the space's
+    actual pixels have also visibly changed from that background — a real,
+    independent signal that doesn't care what a neighboring vehicle's mask
+    or box happened to spill into.
+
+    Deliberately one-directional: this only ever VETOES a detector-positive
+    reading, never invents an occupied space on its own. An appearance
+    change alone (a shadow, a pedestrian, a car passing in front of the
+    space on its way elsewhere) is too easy to false-positive on to trust
+    unsupervised — requiring it to *agree* with the detector is a safe
+    tightening, not a replacement for it.
+    """
+
+    def __init__(
+        self,
+        diff_threshold: float = APPEARANCE_DIFF_THRESHOLD,
+        learning_rate: float = APPEARANCE_LEARNING_RATE,
+    ) -> None:
+        self._diff_threshold = diff_threshold
+        self._learning_rate = learning_rate
+        self._background: dict[str, np.ndarray] = {}
+
+    def looks_changed(self, space: _CachedSpace, frame: np.ndarray, detector_occupied: bool) -> bool:
+        sx1, sy1, sx2, sy2 = space.bbox
+        if sx2 <= sx1 or sy2 <= sy1:
+            return detector_occupied  # degenerate space geometry; nothing to corroborate against
+
+        patch = cv2.cvtColor(frame[sy1:sy2, sx1:sx2], cv2.COLOR_BGR2GRAY).astype(np.float32)
+        mask = space.mask[sy1:sy2, sx1:sx2] > 0
+        if not mask.any():
+            return detector_occupied
+
+        background = self._background.get(space.label)
+        if background is None or background.shape != patch.shape:
+            # No reference yet (first sight, or the space geometry changed
+            # via the live editor) — nothing to compare against, so pass the
+            # detector's own reading through rather than vetoing blind.
+            self._background[space.label] = patch
+            return detector_occupied
+
+        changed = bool(np.abs(patch - background)[mask].mean() >= self._diff_threshold)
+
+        if not detector_occupied and not changed:
+            # Only drift the background while the space reads confidently
+            # empty AND visually stable — a car that sits there a while must
+            # never get slowly absorbed into "this is what empty looks like".
+            self._background[space.label] = (1 - self._learning_rate) * background + self._learning_rate * patch
+
+        return changed
+
+
+@dataclass
+class _OccupancyStreak:
+    started_at: float
+    last_true_at: float
+
+
+class OccupancyDebouncer:
+    """Requires a space's raw per-frame occupancy signal to hold for
+    CONFIRM_HOLD_SECONDS before treating it as real enough to start that
+    space's clock. Tolerates single missed frames (a momentary occlusion or
+    detection dropout) up to FLICKER_GAP_SECONDS without resetting the
+    streak — the same tolerance ParkingTimers.GRACE_PERIOD_SECONDS already
+    gives the reverse transition (occupied -> empty).
+
+    This only delays the *first* tick of a genuine parking event by about a
+    second and a half; it does not touch the violation/tow thresholds after
+    a space is confirmed parked.
+    """
+
+    CONFIRM_HOLD_SECONDS = 1.5
+    FLICKER_GAP_SECONDS = 0.75
+
+    def __init__(self, confirm_hold: float = CONFIRM_HOLD_SECONDS, flicker_gap: float = FLICKER_GAP_SECONDS) -> None:
+        self._confirm_hold = confirm_hold
+        self._flicker_gap = flicker_gap
+        self._streaks: dict[str, _OccupancyStreak] = {}
+
+    def update(self, raw_occupancy: dict[str, bool], now: float | None = None) -> dict[str, bool]:
+        now = now if now is not None else time.time()
+        confirmed: dict[str, bool] = {}
+        for label, occupied in raw_occupancy.items():
+            streak = self._streaks.get(label)
+            if occupied:
+                if streak is None or now - streak.last_true_at > self._flicker_gap:
+                    streak = _OccupancyStreak(started_at=now, last_true_at=now)
+                    self._streaks[label] = streak
+                else:
+                    streak.last_true_at = now
+                confirmed[label] = (now - streak.started_at) >= self._confirm_hold
+            else:
+                # Keep the streak alive through a single missed frame (the
+                # next true reading re-checks the gap above) — only drop it
+                # once it's aged out, so long-empty spaces don't leak memory.
+                if streak is not None and now - streak.last_true_at > self._flicker_gap:
+                    del self._streaks[label]
+                confirmed[label] = False
+        return confirmed
+
+
 def compute_occupancy(
     spaces: list[_CachedSpace],
     boxes: list[tuple],
     masks: list[np.ndarray] | None = None,
+    frame: np.ndarray | None = None,
+    appearance_model: SpaceAppearanceModel | None = None,
 ) -> dict[str, bool]:
     occupancy: dict[str, bool] = {}
     for space in spaces:
         if masks is not None:
-            occupancy[space.label] = any(is_occupied_by_mask(space, m) for m in masks)
+            detector_occupied = any(is_occupied_by_mask(space, m) for m in masks)
         else:
-            occupancy[space.label] = any(is_occupied_by_box(space, box) for box in boxes)
+            detector_occupied = any(is_occupied_by_box(space, box) for box in boxes)
+
+        if frame is not None and appearance_model is not None:
+            changed = appearance_model.looks_changed(space, frame, detector_occupied)
+            occupancy[space.label] = detector_occupied and changed
+        else:
+            occupancy[space.label] = detector_occupied
     return occupancy
 
 
