@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import SectionReveal from "./SectionReveal";
 
 if (typeof window !== "undefined") {
   gsap.registerPlugin(ScrollTrigger);
@@ -12,20 +13,26 @@ const STEPS = [
   {
     n: "01",
     label: "DETECT",
-    title: "See it.",
-    desc: "Mater watches the environment and identifies vehicles automatically.",
+    title: "See every vehicle, the instant it arrives.",
+    desc: "Mater runs real-time vehicle detection and tracking on your existing camera feed — no new hardware, no separate sensors. Every space is checked against its exact drawn geometry, not a rough zone, so a car parked across a line reads correctly instead of confusing two spaces at once.",
   },
   {
     n: "02",
     label: "VERIFY",
-    title: "Time it.",
-    desc: "A vehicle isn't a tow simply because it's there. Mater understands location, movement, dwell time, and the parking rules configured for each zone.",
+    title: "Confirm it's a violation, not a glitch.",
+    desc: "A car passing through, a plow blocking the view for a second, headlight glare — none of that should trigger an alert. Mater requires a state to hold steady across multiple frames before it trusts it, then times how long the vehicle has actually stayed against the rule configured for that exact zone: fire lane, handicap, standard, whatever you've set.",
   },
   {
     n: "03",
+    label: "REVIEW",
+    title: "A person signs off before anything happens.",
+    desc: "Every confirmed violation raises an alert in the dashboard for a human reviewer — nothing escalates on its own. You see the timestamped evidence, the zone, and how long the vehicle has been there, and you decide: acknowledge it, dismiss it, or send it on.",
+  },
+  {
+    n: "04",
     label: "DISPATCH",
-    title: "Send it.",
-    desc: "When a tow is needed, Mater turns the event into a job.",
+    title: "Turn a reviewed case into a job.",
+    desc: "Once a reviewer confirms it, Mater turns the case into a tow request — vehicle, location, and evidence attached — and routes it to the nearest available truck.",
   },
 ] as const;
 
@@ -44,7 +51,7 @@ function DetectVisual() {
         alt="A real camera frame from a Mater-monitored lot, with space occupancy detected and labeled"
         className="h-full w-full object-cover"
       />
-      <div className="absolute inset-x-0 top-0 flex items-center gap-1.5 bg-gradient-to-b from-black/70 to-transparent px-4 py-3">
+      <div className="absolute inset-x-0 top-0 flex items-center gap-1.5 bg-gradient-to-b from-black/70 to-transparent px-5 py-4">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
         <span className="font-mono text-[10px] uppercase tracking-widest text-white/70">
           Live detection — real footage
@@ -63,13 +70,43 @@ function VerifyVisual() {
         alt="The same lot at night, with one space flagged as occupied while Mater tracks how long the vehicle has stayed"
         className="h-full w-full object-cover"
       />
-      <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1.5 bg-gradient-to-t from-black/85 via-black/50 to-transparent px-4 pb-4 pt-10">
+      <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1.5 bg-gradient-to-t from-black/85 via-black/50 to-transparent px-5 pb-5 pt-12">
         {TIMELINE.map((step) => (
           <div key={step.time} className="flex items-baseline gap-2.5 font-mono text-[11px]">
             <span className="text-white/40">{step.time}</span>
             <span className="text-white/80">{step.label}</span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function ReviewVisual() {
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neutral-900 to-neutral-950 p-8">
+      <div className="w-full max-w-sm rounded-xl border border-white/10 bg-white/[0.03] p-4">
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-[11px] uppercase tracking-wider text-white/40">Alerts to review</span>
+          <span className="rounded-full bg-white/10 px-2 py-0.5 font-mono text-[10px] text-white/70">1</span>
+        </div>
+        <div className="mt-3 rounded-lg border border-white/10 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-mono text-sm text-white">Space P9</span>
+            <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-amber-400">
+              Violation
+            </span>
+          </div>
+          <p className="mt-1 font-mono text-[11px] text-white/40">Standard · 6m stationary</p>
+          <div className="mt-3 flex gap-2">
+            <span className="rounded-full bg-white px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-black">
+              Acknowledge
+            </span>
+            <span className="rounded-full border border-white/20 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-white/70">
+              Dismiss
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -113,13 +150,15 @@ function DispatchVisual() {
   );
 }
 
-const VISUALS = [DetectVisual, VerifyVisual, DispatchVisual];
+const VISUALS = [DetectVisual, VerifyVisual, ReviewVisual, DispatchVisual];
 
-// Detect/Verify/Dispatch as one pinned, scroll-scrubbed section — the visual
-// on the right changes as you scroll through the three steps instead of each
-// step being its own fade-in card. Pinning is desktop-only (gsap.matchMedia):
-// on a phone, pinning a tall section for a multi-screen scroll distance is
-// more disorienting than nice, so it falls back to a plain stacked list.
+// Detect/Verify/Review/Dispatch as one pinned, scroll-scrubbed section — the
+// image and the text both crossfade together as you scroll through the four
+// steps, with a slim always-visible progress row above for orientation
+// (rather than stacking every title, dimmed, underneath the active one).
+// Pinning is desktop-only (gsap.matchMedia): on a phone, pinning a tall
+// section for a multi-screen scroll distance is more disorienting than
+// nice, so it falls back to a plain stacked list.
 export default function PipelineSection() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
@@ -149,39 +188,56 @@ export default function PipelineSection() {
   }, []);
 
   return (
-    <div ref={wrapRef} className="relative bg-black">
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-center px-8 py-28 sm:px-12">
-        <div className="grid gap-12 md:grid-cols-2 md:items-center">
-          <div className="flex flex-col gap-10">
-            {STEPS.map((step, i) => (
-              <button
-                key={step.label}
-                onClick={() => setActive(i)}
-                className="text-left transition-opacity duration-300 md:cursor-default"
-                style={{ opacity: i === active ? 1 : 0.35 }}
-              >
-                <p className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">
-                  {step.n} · {step.label}
-                </p>
-                <h3 className="mt-2 font-serif text-4xl font-semibold text-white sm:text-5xl">{step.title}</h3>
-                {i === active && <p className="mt-3 max-w-sm text-white/60">{step.desc}</p>}
-              </button>
-            ))}
-          </div>
+    <>
+      <SectionReveal className="mx-auto w-full max-w-4xl px-8 pt-28 text-center sm:px-12">
+        <p className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">How it works</p>
+        <h2 className="mt-4 font-serif text-4xl font-semibold text-white sm:text-5xl">
+          From a parked car to a dispatched tow — with a person deciding at every step.
+        </h2>
+      </SectionReveal>
 
-          <div className="relative aspect-video overflow-hidden rounded-2xl border border-neutral-800 md:sticky md:top-1/2 md:-translate-y-1/2">
-            {VISUALS.map((Visual, i) => (
-              <div
-                key={i}
-                className="absolute inset-0 transition-opacity duration-500"
-                style={{ opacity: i === active ? 1 : 0, pointerEvents: i === active ? "auto" : "none" }}
-              >
-                <Visual />
+      <div ref={wrapRef} className="relative bg-black">
+        <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-center px-8 py-20 sm:px-12">
+          <div className="mb-10 flex items-center justify-center gap-2 sm:gap-4">
+            {STEPS.map((step, i) => (
+              <div key={step.label} className="flex items-center gap-2 sm:gap-4">
+                <button
+                  onClick={() => setActive(i)}
+                  className="font-mono text-[11px] uppercase tracking-[0.2em] transition-colors md:cursor-default"
+                  style={{ color: i === active ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.3)" }}
+                >
+                  {step.label}
+                </button>
+                {i < STEPS.length - 1 && <span className="text-white/20">→</span>}
               </div>
             ))}
           </div>
+
+          <div className="grid gap-10 md:grid-cols-2 md:items-center">
+            <div className="min-h-[220px]">
+              <p className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">
+                {STEPS[active].n} · {STEPS[active].label}
+              </p>
+              <h3 className="mt-4 font-serif text-3xl font-semibold text-white sm:text-4xl">
+                {STEPS[active].title}
+              </h3>
+              <p className="mt-5 max-w-md text-white/60">{STEPS[active].desc}</p>
+            </div>
+
+            <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-neutral-800 sm:aspect-video">
+              {VISUALS.map((Visual, i) => (
+                <div
+                  key={i}
+                  className="absolute inset-0 transition-opacity duration-500"
+                  style={{ opacity: i === active ? 1 : 0, pointerEvents: i === active ? "auto" : "none" }}
+                >
+                  <Visual />
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
