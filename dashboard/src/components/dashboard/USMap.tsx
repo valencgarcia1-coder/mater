@@ -25,13 +25,18 @@ const STYLE: StyleSpecification = {
     ofm: { type: "vector", url: "https://tiles.openfreemap.org/planet" },
   },
   layers: [
-    { id: "bg", type: "background", paint: { "background-color": "#050505" } },
+    // OpenMapTiles has no single "land" polygon covering every continent —
+    // land is implicitly whatever isn't drawn over, so the background color
+    // itself is the land color, and water is a separate fill layer on top of
+    // it. They need real contrast or the whole map reads as one flat color
+    // (which is exactly what shipped the first time: both were near-black).
+    { id: "bg", type: "background", paint: { "background-color": "#141414" } },
     {
-      id: "land",
+      id: "landcover",
       type: "fill",
       source: "ofm",
       "source-layer": "landcover",
-      paint: { "fill-color": "rgba(255,255,255,0.035)" },
+      paint: { "fill-color": "rgba(255,255,255,0.05)" },
     },
     {
       id: "water",
@@ -46,7 +51,7 @@ const STYLE: StyleSpecification = {
       source: "ofm",
       "source-layer": "boundary",
       filter: ["==", ["get", "admin_level"], 4],
-      paint: { "line-color": "rgba(255,255,255,0.08)", "line-width": 0.6 },
+      paint: { "line-color": "rgba(255,255,255,0.15)", "line-width": 0.6 },
     },
     {
       id: "boundary-country",
@@ -54,7 +59,7 @@ const STYLE: StyleSpecification = {
       source: "ofm",
       "source-layer": "boundary",
       filter: ["<=", ["get", "admin_level"], 2],
-      paint: { "line-color": "rgba(255,255,255,0.25)", "line-width": 1 },
+      paint: { "line-color": "rgba(255,255,255,0.4)", "line-width": 1 },
     },
     {
       id: "place-state",
