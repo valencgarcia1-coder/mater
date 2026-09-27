@@ -1,6 +1,10 @@
 import GetStartedButton from "./GetStartedButton";
 
-const LINKS = ["Product", "Fleet", "Pricing", "About"];
+const LINKS = [
+  { label: "Product", href: "#product" },
+  { label: "How It Works", href: "#how-it-works" },
+  { label: "About", href: "#about" },
+];
 
 export default function Nav() {
   return (
@@ -9,10 +13,10 @@ export default function Nav() {
       <img src="/mater-mark.svg" alt="Mater" className="h-11 w-auto" />
       <div className="flex items-center gap-9">
         <nav className="hidden items-center gap-9 md:flex">
-          {LINKS.map((label) => (
+          {LINKS.map(({ label, href }) => (
             <a
               key={label}
-              href={`#${label.toLowerCase()}`}
+              href={href}
               className="font-mono text-xs uppercase tracking-wider text-white/70 transition-colors hover:text-white"
             >
               {label}

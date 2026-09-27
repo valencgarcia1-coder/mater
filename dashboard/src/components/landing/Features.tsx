@@ -68,7 +68,17 @@ const ITEMS = [
 
 export default function Features() {
   return (
-    <SectionReveal className="mx-auto w-full max-w-6xl px-8 py-28 sm:px-12" id="product">
+    <SectionReveal className="relative mx-auto w-full max-w-6xl px-8 py-28 sm:px-12" id="product">
+      <div
+        aria-hidden="true"
+        className="landing-glow pointer-events-none absolute right-0 top-1/3 -z-10 h-[380px] w-[680px] translate-x-1/4 rounded-full bg-emerald-500/10 blur-[120px]"
+        style={{ animationDelay: "-9s" }}
+      />
+      <div
+        aria-hidden="true"
+        className="landing-glow pointer-events-none absolute left-0 bottom-0 -z-10 h-[320px] w-[560px] -translate-x-1/4 translate-y-1/3 rounded-full bg-sky-500/10 blur-[110px]"
+        style={{ animationDelay: "-16s" }}
+      />
       <h2
         data-reveal-item
         className="font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl"
