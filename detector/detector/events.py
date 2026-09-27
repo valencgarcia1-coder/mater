@@ -17,8 +17,12 @@ import time
 
 
 class EventLog:
-    def __init__(self, path: str | None = "events.jsonl") -> None:
+    def __init__(self, path: str | None = "events.jsonl", sink=None) -> None:
         self._path = path
+        # Optional additional destination (see supabase_sink.py). The local
+        # file is still written first and stays the source of truth — the sink
+        # is best-effort and must never block or fail the caller.
+        self._sink = sink
 
     def emit(self, space: str, zone: str, state: str, elapsed: float | None) -> dict:
         event = {
@@ -31,4 +35,6 @@ class EventLog:
         if self._path:
             with open(self._path, "a") as f:
                 f.write(json.dumps(event) + "\n")
+        if self._sink is not None:
+            self._sink.enqueue(event)
         return event

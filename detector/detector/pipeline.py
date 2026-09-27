@@ -66,6 +66,7 @@ class DetectionPipeline:
         space_classifier: SpaceClassifier | None = None,
         disagreements_path: str = "disagreements.jsonl",
         disagreement_crops_dir: str = "disagreement_crops",
+        event_sink=None,
     ) -> None:
         self.config = config
         self.events_path = events_path
@@ -79,7 +80,7 @@ class DetectionPipeline:
         # occupancy dataset. It should never turn on silently just because
         # the pipeline started.
         self.vision_labeler = vision_labeler
-        self.parking_timers = ParkingTimers(state_path=timers_state_path, events_path=events_path)
+        self.parking_timers = ParkingTimers(state_path=timers_state_path, events_path=events_path, event_sink=event_sink)
         # Uncalibrated: raw-pixel velocity, which is systematically wrong
         # across a perspective-distorted frame. Calibrating via /calibrate
         # switches this to real meters/sec (see calibration.py).

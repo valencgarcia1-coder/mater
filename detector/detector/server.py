@@ -24,9 +24,10 @@ import yaml
 from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 
-from detector.config import CameraConfig, SpaceRegion
+from detector.config import CameraConfig, SpaceRegion, load_spaces_file, parse_spaces, save_spaces_file
 from detector.pipeline import DetectionPipeline
 from detector.space_classifier import SpaceClassifier
+from detector.supabase_sink import SupabaseEventSink
 from detector.vision_labeler import VisionLabeler
 
 log = logging.getLogger(__name__)
@@ -412,72 +413,6 @@ EVENTS_HTML = """<!doctype html>
 </html>"""
 
 
-def parse_space(raw: object) -> SpaceRegion:
-    """Validates one space from untrusted input (the API, or a hand-edited
-    spaces.yaml). The editor's JS blocks a <3-point polygon client-side, but
-    nothing stopped a direct API call or a bad YAML edit from reaching
-    build_space_masks, where cv2.fillPoly asserts and takes the whole live
-    feed into a restart loop that survives restarts (the bad data was already
-    saved to spaces.yaml). Raises ValueError with a specific message."""
-    if not isinstance(raw, dict) or "label" not in raw or "polygon" not in raw:
-        raise ValueError("each space needs a label and a polygon")
-    polygon = raw["polygon"]
-    if not isinstance(polygon, list) or len(polygon) < 3:
-        raise ValueError(f"space {raw['label']}: polygon needs at least 3 points")
-    points = []
-    for pt in polygon:
-        ok = isinstance(pt, (list, tuple)) and len(pt) == 2 and all(
-            isinstance(v, (int, float)) and not isinstance(v, bool) for v in pt
-        )
-        if not ok:
-            raise ValueError(f"space {raw['label']}: every polygon point must be [x, y] numbers")
-        points.append([int(round(pt[0])), int(round(pt[1]))])
-    zone = raw.get("zone", "standard")
-    if not isinstance(zone, str):
-        raise ValueError(f"space {raw['label']}: zone must be a string")
-    return SpaceRegion(label=str(raw["label"]), polygon=points, zone=zone)
-
-
-def parse_spaces(raw_spaces: object) -> list[SpaceRegion]:
-    if not isinstance(raw_spaces, list):
-        raise ValueError("spaces must be a list")
-    spaces = [parse_space(s) for s in raw_spaces]
-    labels = [s.label for s in spaces]
-    if len(set(labels)) != len(labels):
-        raise ValueError("space labels must be unique")
-    return spaces
-
-
-def load_spaces_file(path: str) -> list[SpaceRegion]:
-    try:
-        with open(path) as f:
-            raw = yaml.safe_load(f) or {}
-    except FileNotFoundError:
-        return []
-    # Skip (and say so) rather than crash on a bad entry: a startup crash
-    # here would need someone to hand-edit the file before the feed could
-    # come back at all.
-    spaces, seen = [], set()
-    for entry in raw.get("spaces", []):
-        try:
-            space = parse_space(entry)
-        except ValueError as e:
-            log.warning("skipping invalid space in %s: %s", path, e)
-            continue
-        if space.label in seen:
-            log.warning("skipping duplicate space label %s in %s", space.label, path)
-            continue
-        seen.add(space.label)
-        spaces.append(space)
-    return spaces
-
-
-def save_spaces_file(path: str, spaces: list[SpaceRegion]) -> None:
-    payload = {"spaces": [{"label": s.label, "polygon": s.polygon, "zone": s.zone} for s in spaces]}
-    with open(path, "w") as f:
-        yaml.safe_dump(payload, f, sort_keys=False)
-
-
 class LiveFeed:
     """Owns the pipeline and the single latest annotated JPEG, produced by
     one background thread and read by any number of HTTP clients."""
@@ -488,10 +423,15 @@ class LiveFeed:
         read_plates: bool,
         vision_labeler: VisionLabeler | None = None,
         space_classifier: SpaceClassifier | None = None,
+        event_sink: SupabaseEventSink | None = None,
     ) -> None:
         self.config = config
         self.pipeline = DetectionPipeline(
-            config, read_plates=read_plates, vision_labeler=vision_labeler, space_classifier=space_classifier
+            config,
+            read_plates=read_plates,
+            vision_labeler=vision_labeler,
+            space_classifier=space_classifier,
+            event_sink=event_sink,
         )
         self._lock = threading.Lock()
         self._latest_jpeg: bytes | None = None
@@ -554,6 +494,7 @@ def create_app(
     spaces_file: str = "spaces.yaml",
     vision_labeler: VisionLabeler | None = None,
     space_classifier: SpaceClassifier | None = None,
+    event_sink: SupabaseEventSink | None = None,
 ) -> Flask:
     app = Flask(__name__)
     # The dashboard (a separate Next.js dev server, different origin) needs
@@ -562,7 +503,13 @@ def create_app(
     # and enumerating routes here is just something to forget to update the
     # next time an endpoint is added.
     CORS(app, resources={r"/*": {"origins": "*"}})
-    feed = LiveFeed(config, read_plates=read_plates, vision_labeler=vision_labeler, space_classifier=space_classifier)
+    feed = LiveFeed(
+        config,
+        read_plates=read_plates,
+        vision_labeler=vision_labeler,
+        space_classifier=space_classifier,
+        event_sink=event_sink,
+    )
     feed.start()
 
     @app.route("/")
@@ -718,6 +665,10 @@ def main() -> None:
     # one): runs a trained per-space image classifier alongside the geometric
     # test and only trusts a space's occupancy when the two agree.
     parser.add_argument("--occupancy-classifier", help="path to a trained occupancy_classifier.pt")
+    # Off unless asked for: also sends every space state change to Supabase.
+    # Needs SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and SUPABASE_CAMERA_ID in
+    # the environment (see supabase/README.md). events.jsonl is still written.
+    parser.add_argument("--supabase", action="store_true", help="also send space events to Supabase")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -757,12 +708,17 @@ def main() -> None:
         space_classifier = SpaceClassifier(args.occupancy_classifier)
         log.info("occupancy classifier enabled: %s", args.occupancy_classifier)
 
+    event_sink = SupabaseEventSink.from_env() if args.supabase else None
+    if event_sink:
+        log.info("supabase event sink enabled")
+
     app = create_app(
         config,
         read_plates=not args.no_plates,
         spaces_file=args.spaces_file,
         vision_labeler=vision_labeler,
         space_classifier=space_classifier,
+        event_sink=event_sink,
     )
     app.run(host="127.0.0.1", port=args.port, threaded=True)
 

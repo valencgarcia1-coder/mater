@@ -33,3 +33,4 @@ detector/training/*.pt
 
 # OS
 .DS_Store
+supabase/tests/node_modules/

@@ -92,11 +92,16 @@ def _classify(elapsed_since_parked: float | None, rules: dict) -> str:
 
 
 class ParkingTimers:
-    def __init__(self, state_path: str | None = "parking_timers.json", events_path: str | None = "events.jsonl") -> None:
+    def __init__(
+        self,
+        state_path: str | None = "parking_timers.json",
+        events_path: str | None = "events.jsonl",
+        event_sink=None,
+    ) -> None:
         self._state: dict[str, _SpaceState] = {}
         self._state_path = state_path
         self._last_emitted_state: dict[str, str] = {}
-        self._events = EventLog(path=events_path)
+        self._events = EventLog(path=events_path, sink=event_sink)
         self._load()
 
     def update(self, occupied: dict[str, str], now: float | None = None) -> dict[str, SpaceStatus]:
