@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   getEvents,
@@ -14,6 +14,7 @@ import Shell from "./dashboard/Shell";
 import ActivityPanel from "./dashboard/ActivityPanel";
 import AlertsPanel from "./dashboard/AlertsPanel";
 import USMap from "./dashboard/USMap";
+import FloatingPanel from "./dashboard/FloatingPanel";
 import { supabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/client";
 
@@ -29,6 +30,7 @@ type PropertyRow = { id: string; name: string; lat: number | null; lng: number |
 // PropertyDetail.tsx about the single-tenant reality that'll need fixing
 // once there's a second camera.
 export default function Dashboard() {
+  const boundsRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<DetectorStatus | null>(null);
   const [spaces, setSpaces] = useState<SpacesStatus>({});
   const [events, setEvents] = useState<DetectorEvent[]>([]);
@@ -91,48 +93,47 @@ export default function Dashboard() {
         <USMap properties={properties} />
       </div>
 
-      <div className="pointer-events-none absolute inset-0 flex flex-col p-4">
+      <div ref={boundsRef} className="pointer-events-none absolute inset-0 p-4">
         {pinnedCount === 0 && properties.length > 0 && (
-          <div className={`${overlayCard} pointer-events-auto max-w-sm self-start px-4 py-3`}>
+          <div className={`${overlayCard} pointer-events-auto max-w-sm px-4 py-3`}>
             <p className="text-xs font-light text-white/40">
               No properties have coordinates yet — add lat/lng in Settings to place a pin.
             </p>
           </div>
         )}
 
-        {/* mb-6 keeps the panel's bottom edge clear of the map's attribution text */}
-        <div className="pointer-events-none flex flex-1 items-end justify-end">
-          <div
-            className={`${overlayCard} pointer-events-auto mb-6 flex max-h-[calc(100vh-9rem)] w-72 flex-shrink-0 flex-col gap-3 overflow-y-auto p-3`}
-          >
-            <div className="flex items-center justify-between gap-3 font-mono text-[10px] uppercase tracking-wider text-white/35">
-              <span>{status?.active_tracks ?? "—"} active</span>
-              <span>{violationCount} violations</span>
-              <span>{status ? status.fps_estimate.toFixed(1) : "—"} fps</span>
-            </div>
-            <div className="h-px bg-white/10" />
-            {supabaseConfigured && <AlertsPanel />}
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-              <h3 className="font-mono text-[11px] uppercase tracking-wider text-white/40">Properties</h3>
-              <div className="mt-3 flex flex-col gap-1.5">
-                {properties.length === 0 ? (
-                  <p className="text-sm font-light text-white/30">None yet.</p>
-                ) : (
-                  properties.map((p) => (
-                    <Link
-                      key={p.id}
-                      href={`/dashboard/properties/${p.id}`}
-                      className="rounded-lg px-2 py-1.5 text-sm text-white/70 transition-colors hover:bg-white/[0.08] hover:text-white"
-                    >
-                      {p.name}
-                    </Link>
-                  ))
-                )}
-              </div>
-            </div>
-            <ActivityPanel events={events} linkPropertyId={properties[0]?.id} />
+        <FloatingPanel
+          storageKey="mater.overview-panel"
+          boundsRef={boundsRef}
+          defaultRect={{ x: 10_000, y: 10_000, width: 288, height: 620 }}
+        >
+          <div className="flex items-center justify-between gap-3 font-mono text-[10px] uppercase tracking-wider text-white/35">
+            <span>{status?.active_tracks ?? "—"} active</span>
+            <span>{violationCount} violations</span>
+            <span>{status ? status.fps_estimate.toFixed(1) : "—"} fps</span>
           </div>
-        </div>
+          <div className="h-px bg-white/10" />
+          {supabaseConfigured && <AlertsPanel />}
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+            <h3 className="font-mono text-[11px] uppercase tracking-wider text-white/40">Properties</h3>
+            <div className="mt-3 flex flex-col gap-1.5">
+              {properties.length === 0 ? (
+                <p className="text-sm font-light text-white/30">None yet.</p>
+              ) : (
+                properties.map((p) => (
+                  <Link
+                    key={p.id}
+                    href={`/dashboard/properties/${p.id}`}
+                    className="rounded-lg px-2 py-1.5 text-sm text-white/70 transition-colors hover:bg-white/[0.08] hover:text-white"
+                  >
+                    {p.name}
+                  </Link>
+                ))
+              )}
+            </div>
+          </div>
+          <ActivityPanel events={events} linkPropertyId={properties[0]?.id} />
+        </FloatingPanel>
       </div>
     </Shell>
   );
