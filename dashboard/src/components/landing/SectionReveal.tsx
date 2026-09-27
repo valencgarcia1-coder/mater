@@ -16,8 +16,13 @@ type SectionRevealProps = {
 
 /**
  * Every section below the hero settles into place as it scrolls in: a soft
- * rise with a slight blur-to-sharp focus pull, timed to feel like something
- * coming into frame rather than sliding or bouncing in.
+ * rise with a slight scale-up and blur-to-sharp focus pull, timed to feel
+ * like something coming into frame rather than sliding or bouncing in.
+ *
+ * If any descendant is marked `data-reveal-item`, those animate individually
+ * with a stagger (a grid of cards cascading in one after another) instead of
+ * the whole section moving as one block — mark the repeated items in a grid
+ * (cards, list rows) with that attribute to opt in.
  */
 export default function SectionReveal({ children, className, id }: SectionRevealProps) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -27,19 +32,24 @@ export default function SectionReveal({ children, className, id }: SectionReveal
     const root = rootRef.current;
     if (!root) return;
 
+    const items = root.querySelectorAll<HTMLElement>("[data-reveal-item]");
+    const targets: HTMLElement[] = items.length > 0 ? Array.from(items) : [root];
+
     if (prefersReducedMotion) {
-      gsap.set(root, { opacity: 1, y: 0, filter: "blur(0px)" });
+      gsap.set(targets, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" });
       return;
     }
 
-    gsap.set(root, { y: 28, opacity: 0, filter: "blur(6px)" });
+    gsap.set(targets, { y: 28, opacity: 0, scale: 0.96, filter: "blur(6px)" });
 
-    const tween = gsap.to(root, {
+    const tween = gsap.to(targets, {
       y: 0,
       opacity: 1,
+      scale: 1,
       filter: "blur(0px)",
       duration: 0.9,
       ease: "power3.out",
+      stagger: targets.length > 1 ? 0.1 : 0,
       scrollTrigger: {
         trigger: root,
         start: "top 80%",

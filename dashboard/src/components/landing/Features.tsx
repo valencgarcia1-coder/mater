@@ -69,12 +69,15 @@ const ITEMS = [
 export default function Features() {
   return (
     <SectionReveal className="mx-auto w-full max-w-6xl px-8 py-28 sm:px-12" id="product">
-      <h2 className="font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
+      <h2
+        data-reveal-item
+        className="font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl"
+      >
         One system for the entire parking operation.
       </h2>
       <div className="mt-14 grid gap-10 border-t border-neutral-900 pt-10 sm:grid-cols-2 lg:grid-cols-3">
         {ITEMS.map((item) => (
-          <div key={item.name} className="flex flex-col gap-3">
+          <div key={item.name} data-reveal-item className="flex flex-col gap-3">
             <IconWrap>{item.icon}</IconWrap>
             <h3 className="text-sm font-medium text-white">{item.name}</h3>
             <p className="text-sm text-white/50">{item.desc}</p>

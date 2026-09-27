@@ -59,15 +59,25 @@ const STEPS = [
 // → Automated Access"). One pass, no scroll-jacking.
 export default function HowItWorks() {
   return (
-    <SectionReveal className="mx-auto w-full max-w-6xl px-8 py-24 sm:px-12">
-      <p className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">How it works</p>
-      <h2 className="mt-4 max-w-2xl font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
+    <SectionReveal className="relative mx-auto w-full max-w-6xl px-8 py-24 sm:px-12">
+      <div
+        aria-hidden="true"
+        className="landing-glow pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[380px] w-[700px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/10 blur-[120px]"
+        style={{ animationDelay: "-13s" }}
+      />
+      <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">
+        How it works
+      </p>
+      <h2
+        data-reveal-item
+        className="mt-4 max-w-2xl font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl"
+      >
         From a parked car to a dispatched tow — with a person deciding at every step.
       </h2>
 
       <div className="mt-14 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
         {STEPS.map((step, i) => (
-          <div key={step.label} className="flex flex-col gap-4 bg-black p-7">
+          <div key={step.label} data-reveal-item className="flex flex-col gap-4 bg-black p-7">
             <div className="flex items-center justify-between">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-emerald-400">
                 {step.icon}

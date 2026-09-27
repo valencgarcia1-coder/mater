@@ -22,6 +22,44 @@ body {
   font-family: var(--font-sans-body), Arial, Helvetica, sans-serif;
 }
 
+/* Landing page ambient background: a faint grid that slowly pans, plus
+   soft color blobs that drift and pulse behind sections. Both respect
+   reduced-motion since they're decorative, not informational. */
+@keyframes mater-grid-pan {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 64px 64px;
+  }
+}
+.landing-grid {
+  animation: mater-grid-pan 60s linear infinite;
+}
+
+@keyframes mater-blob-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(6%, -8%) scale(1.12);
+  }
+  66% {
+    transform: translate(-5%, 6%) scale(0.95);
+  }
+}
+.landing-glow {
+  animation: mater-blob-drift 20s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-grid,
+  .landing-glow {
+    animation: none;
+  }
+}
+
 /* MapLibre's default chrome (zoom buttons, attribution, popups) is styled
    for a light page — restyle it to match the dashboard's always-dark theme.
    The map's own layers (land/water/labels) are styled directly in USMap.tsx

@@ -20,15 +20,21 @@ export default function WhoItsFor() {
     <SectionReveal className="relative mx-auto w-full max-w-6xl px-8 py-24 sm:px-12">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute right-0 top-0 -z-10 h-[360px] w-[600px] -translate-y-1/4 translate-x-1/4 rounded-full bg-sky-500/10 blur-[110px]"
+        className="landing-glow pointer-events-none absolute right-0 top-0 -z-10 h-[360px] w-[600px] -translate-y-1/4 translate-x-1/4 rounded-full bg-sky-500/10 blur-[110px]"
+        style={{ animationDelay: "-7s" }}
       />
-      <p className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">Who it&apos;s for</p>
-      <h2 className="mt-4 font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
+      <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">
+        Who it&apos;s for
+      </p>
+      <h2
+        data-reveal-item
+        className="mt-4 font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl"
+      >
         Built for whoever&apos;s on the hook when a lot goes unenforced.
       </h2>
       <div className="mt-12 grid gap-8 border-t border-white/10 pt-10 sm:grid-cols-3">
         {AUDIENCES.map((a) => (
-          <div key={a.name} className="flex flex-col gap-3">
+          <div key={a.name} data-reveal-item className="flex flex-col gap-3">
             <h3 className="text-lg font-medium text-white">{a.name}</h3>
             <p className="text-sm text-white/50">{a.desc}</p>
           </div>
