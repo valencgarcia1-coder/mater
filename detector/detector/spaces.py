@@ -266,6 +266,7 @@ class OccupancyFuser:
         disagreements_path: str | None = "disagreements.jsonl",
         crops_dir: str | None = "disagreement_crops",
         cooldown_seconds: float = 10.0,
+        agreed_sample_seconds: float = 900.0,
     ) -> None:
         self._path = disagreements_path
         self._crops_dir = crops_dir
@@ -274,6 +275,14 @@ class OccupancyFuser:
         # plenty of signal for later labeling.
         self._cooldown = cooldown_seconds
         self._last_logged_at: dict[str, float] = {}
+        # Disagreement crops are all hard cases, so a label set built from them
+        # alone is lopsided (mostly false positives) and fine-tuning on it would
+        # skew the model. Also sampling a crop the two systems AGREE on, every
+        # agreed_sample_seconds per space, supplies the ordinary examples —
+        # including real occupied ones. The predicted label is in the filename;
+        # a human still confirms it before it's used as a label.
+        self._agreed_every = agreed_sample_seconds
+        self._last_agreed_at: dict[str, float] = {}
         self._last: dict[str, bool] = {}
         self._disagreeing: set[str] = set()
 
@@ -294,6 +303,7 @@ class OccupancyFuser:
             if geo == clf_occupied:
                 fused[label] = geo
                 self._disagreeing.discard(label)
+                self._maybe_sample_agreed(label, geo, frame, spaces)
                 continue
             fused[label] = self._last.get(label, False)
             if label not in self._disagreeing:
@@ -333,8 +343,24 @@ class OccupancyFuser:
         with open(self._path, "a") as f:
             f.write(json.dumps(record) + "\n")
 
+    def _maybe_sample_agreed(
+        self, label: str, occupied: bool, frame: np.ndarray | None, spaces: list[_CachedSpace] | None
+    ) -> None:
+        if not self._path or self._agreed_every <= 0:
+            return
+        now = time.time()
+        if now - self._last_agreed_at.get(label, -float("inf")) < self._agreed_every:
+            return
+        self._last_agreed_at[label] = now
+        self._save_crop(label, now, frame, spaces, tag=f"agreed_{'occ' if occupied else 'vac'}")
+
     def _save_crop(
-        self, label: str, ts: float, frame: np.ndarray | None, spaces: list[_CachedSpace] | None
+        self,
+        label: str,
+        ts: float,
+        frame: np.ndarray | None,
+        spaces: list[_CachedSpace] | None,
+        tag: str | None = None,
     ) -> str | None:
         """The exact pixels the classifier judged (the space's bbox crop,
         unresized), saved so this disagreement can be hand-labeled later and
@@ -350,7 +376,8 @@ class OccupancyFuser:
         if x2 <= x1 or y2 <= y1:
             return None
         os.makedirs(self._crops_dir, exist_ok=True)
-        path = os.path.join(self._crops_dir, f"{label}_{int(ts * 1000)}.jpg")
+        suffix = f"_{tag}" if tag else ""
+        path = os.path.join(self._crops_dir, f"{label}_{int(ts * 1000)}{suffix}.jpg")
         cv2.imwrite(path, frame[y1:y2, x1:x2])
         return path
 
