@@ -23,8 +23,8 @@ export default function LandingPage() {
       <Features />
       <HowItWorks />
       <WhoItsFor />
-      <Evidence />
       <About />
+      <Evidence />
       <CTASection />
       <Footer />
     </div>
