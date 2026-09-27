@@ -9,12 +9,14 @@ type Property = { id: string; name: string; lat: number | null; lng: number | nu
 const US_CENTER: [number, number] = [39.5, -98.35];
 const US_ZOOM = 4;
 
-// Free tiles (CARTO's dark basemap over OpenStreetMap data) — no API key or
-// billing account needed, unlike Google Maps/Mapbox. Attribution is required
-// by CARTO's terms and shown in the map's corner.
-const TILE_URL = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-const ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+// Esri's hosted "Dark Gray Canvas" basemap — free, no API key or account
+// (unlike Google Maps/Mapbox, and unlike CARTO's basemaps, which now require
+// signing in). Two layers: a base fill, then a reference layer for labels/
+// borders drawn on top of it. Note the {z}/{y}/{x} order — Esri's REST tile
+// scheme puts y before x, the reverse of most other providers.
+const BASE_URL = "https://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}";
+const REFERENCE_URL = "https://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}";
+const ATTRIBUTION = "&copy; Esri, HERE, Garmin, OpenStreetMap contributors";
 
 export default function USMap({ properties }: { properties: Property[] }) {
   const router = useRouter();
@@ -31,9 +33,11 @@ export default function USMap({ properties }: { properties: Property[] }) {
       const map = L.map(containerRef.current, {
         center: US_CENTER,
         zoom: US_ZOOM,
+        maxZoom: 16,
         scrollWheelZoom: true,
       });
-      L.tileLayer(TILE_URL, { attribution: ATTRIBUTION, maxZoom: 19 }).addTo(map);
+      L.tileLayer(BASE_URL, { attribution: ATTRIBUTION, maxZoom: 16 }).addTo(map);
+      L.tileLayer(REFERENCE_URL, { maxZoom: 16 }).addTo(map);
       mapRef.current = map;
 
       const pinned = properties.filter(
