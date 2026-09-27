@@ -59,13 +59,13 @@ const STEPS = [
 // → Automated Access"). One pass, no scroll-jacking.
 export default function HowItWorks() {
   return (
-    <SectionReveal id="how-it-works" className="relative mx-auto w-full max-w-6xl px-8 py-24 sm:px-12">
+    <SectionReveal id="how-it-works" className="relative isolate mx-auto w-full max-w-6xl px-8 py-24 sm:px-12">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[380px] w-[700px] -translate-x-1/2 -translate-y-1/2"
+        className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[340px] w-[700px] -translate-x-1/2 -translate-y-1/3"
       >
         <div
-          className="landing-glow h-full w-full rounded-full bg-violet-500/10 blur-[120px]"
+          className="landing-glow h-full w-full rounded-full bg-violet-400/12 blur-[95px]"
           style={{ animationDelay: "-13s" }}
         />
       </div>

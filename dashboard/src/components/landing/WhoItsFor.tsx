@@ -17,13 +17,13 @@ const AUDIENCES = [
 
 export default function WhoItsFor() {
   return (
-    <SectionReveal className="relative mx-auto w-full max-w-6xl px-8 py-24 sm:px-12">
+    <SectionReveal className="relative isolate mx-auto w-full max-w-6xl px-8 py-24 sm:px-12">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute right-0 top-0 -z-10 h-[360px] w-[600px] -translate-y-1/4"
       >
         <div
-          className="landing-glow h-full w-full rounded-full bg-sky-500/10 blur-[110px]"
+          className="landing-glow h-full w-full rounded-full bg-sky-400/15 blur-[90px]"
           style={{ animationDelay: "-7s" }}
         />
       </div>

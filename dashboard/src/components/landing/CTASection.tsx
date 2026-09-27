@@ -3,13 +3,13 @@ import GetStartedButton from "./GetStartedButton";
 
 export default function CTASection() {
   return (
-    <SectionReveal className="relative mx-auto w-full max-w-3xl px-8 py-32 text-center sm:px-12" id="contact">
+    <SectionReveal className="relative isolate mx-auto w-full max-w-3xl px-8 py-32 text-center sm:px-12" id="contact">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[420px] w-[820px] -translate-x-1/2 -translate-y-1/2"
       >
         <div
-          className="landing-glow h-full w-full rounded-full bg-violet-500/10 blur-[130px]"
+          className="landing-glow h-full w-full rounded-full bg-violet-400/12 blur-[100px]"
           style={{ animationDelay: "-2s" }}
         />
       </div>
