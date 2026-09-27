@@ -1,12 +1,5 @@
 import SectionReveal from "./SectionReveal";
 
-const TRACKS = [
-  { id: "#12", status: "TRACKING" },
-  { id: "#19", status: "PARKED" },
-  { id: "#23", status: "MOVING" },
-  { id: "#27", status: "PARKED" },
-];
-
 export default function DetectSection() {
   return (
     <SectionReveal className="mx-auto w-full max-w-6xl px-8 py-28 sm:px-12">
@@ -18,18 +11,18 @@ export default function DetectSection() {
             Mater watches the environment and identifies vehicles automatically.
           </p>
         </div>
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-6">
-          <p className="font-mono text-xs tracking-wide text-white/40">42 VEHICLES DETECTED</p>
-          <div className="mt-4 space-y-2">
-            {TRACKS.map((t) => (
-              <div
-                key={t.id}
-                className="flex items-center justify-between border-b border-neutral-900 py-2 font-mono text-sm"
-              >
-                <span className="text-white/70">{t.id}</span>
-                <span className="text-white/40">{t.status}</span>
-              </div>
-            ))}
+        <div className="relative overflow-hidden rounded-2xl border border-neutral-800">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/landing/detect-frame.jpg"
+            alt="A real camera frame from a Mater-monitored lot, with space occupancy detected and labeled"
+            className="aspect-video w-full object-cover"
+          />
+          <div className="absolute inset-x-0 top-0 flex items-center gap-1.5 bg-gradient-to-b from-black/70 to-transparent px-4 py-3">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            <span className="font-mono text-[10px] uppercase tracking-widest text-white/70">
+              Live detection — real footage
+            </span>
           </div>
         </div>
       </div>
