@@ -39,16 +39,16 @@ class SupabaseEventSink:
         timeout: float = 10.0,
         retry_delays: tuple[float, ...] = RETRY_DELAYS,
     ) -> None:
-        self._endpoint = f"{url.rstrip('/')}/rest/v1/rpc/record_space_event"
-        self._headers = {
-            "apikey": service_key,
-            "Authorization": f"Bearer {service_key}",
-            "Content-Type": "application/json",
-        }
+        self._rpc_base = f"{url.rstrip('/')}/rest/v1/rpc"
+        self._headers = {"apikey": service_key, "Content-Type": "application/json"}
+        # Legacy service_role keys are JWTs and go in Authorization too; the
+        # newer sb_secret_* keys aren't JWTs and must only be sent as apikey.
+        if service_key.startswith("eyJ"):
+            self._headers["Authorization"] = f"Bearer {service_key}"
         self._camera_id = camera_id
         self._retry_delays = retry_delays
         self._client = httpx.Client(timeout=timeout)
-        self._queue: queue.Queue[dict] = queue.Queue(maxsize=max_queue)
+        self._queue: queue.Queue[tuple[str, dict]] = queue.Queue(maxsize=max_queue)
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
@@ -63,7 +63,7 @@ class SupabaseEventSink:
 
     def enqueue(self, event: dict) -> None:
         """Called from the frame loop: must return immediately."""
-        payload = {
+        self._put("record_space_event", {
             "p_camera_id": self._camera_id,
             "p_label": str(event["space"]),
             "p_state": str(event["event"]).lower(),
@@ -71,17 +71,33 @@ class SupabaseEventSink:
             # Events are emitted the moment the transition happens, so now() is
             # the occurrence time; sent as UTC so it's unambiguous in the DB.
             "p_occurred_at": datetime.now(timezone.utc).isoformat(),
-        }
+        })
+
+    def enqueue_status(self, statuses: dict[str, dict]) -> None:
+        """Snapshot of every space's current state ({label: {state, elapsed}}),
+        so the live status table is right from startup and self-heals after any
+        dropped event. Shares the queue with events, so it's delivered after
+        any event enqueued before it and can't overwrite a newer state."""
+        self._put("sync_space_status", {
+            "p_camera_id": self._camera_id,
+            "p_states": [
+                {"label": str(label), "state": st["state"], "elapsed": st.get("elapsed")}
+                for label, st in statuses.items()
+            ],
+        })
+
+    def _put(self, rpc: str, payload: dict) -> None:
+        item = (rpc, payload)
         try:
-            self._queue.put_nowait(payload)
+            self._queue.put_nowait(item)
         except queue.Full:
             try:
                 self._queue.get_nowait()  # drop the oldest to make room
                 self._queue.task_done()  # a dropped item is finished too, or flush() would wait on it forever
             except queue.Empty:
                 pass
-            self._queue.put_nowait(payload)
-            log.warning("supabase sink queue full; dropped the oldest event")
+            self._queue.put_nowait(item)
+            log.warning("supabase sink queue full; dropped the oldest item")
 
     def flush(self, timeout: float = 30.0) -> bool:
         """Blocks until everything queued has been sent (or given up on)."""
@@ -96,18 +112,18 @@ class SupabaseEventSink:
 
     def _run(self) -> None:
         while True:
-            payload = self._queue.get()
+            rpc, payload = self._queue.get()
             try:
-                self._send(payload)
+                self._send(rpc, payload)
             except Exception:
                 log.exception("supabase sink: unexpected error, dropping event")
             finally:
                 self._queue.task_done()
 
-    def _send(self, payload: dict) -> None:
+    def _send(self, rpc: str, payload: dict) -> None:
         for attempt in range(len(self._retry_delays) + 1):
             try:
-                resp = self._client.post(self._endpoint, headers=self._headers, json=payload)
+                resp = self._client.post(f"{self._rpc_base}/{rpc}", headers=self._headers, json=payload)
             except httpx.HTTPError as e:
                 error = f"network error: {e}"
             else:
@@ -115,12 +131,11 @@ class SupabaseEventSink:
                     return
                 if resp.status_code < 500:
                     log.error(
-                        "supabase rejected event for space %s (%s): %s — not retrying",
-                        payload["p_label"], resp.status_code, resp.text[:200],
+                        "supabase rejected %s (%s): %s — not retrying", rpc, resp.status_code, resp.text[:200],
                     )
                     return
                 error = f"server error {resp.status_code}"
             if attempt < len(self._retry_delays):
                 time.sleep(self._retry_delays[attempt])
             else:
-                log.error("supabase sink: giving up on event for space %s after retries (%s)", payload["p_label"], error)
+                log.error("supabase sink: giving up on %s after retries (%s)", rpc, error)

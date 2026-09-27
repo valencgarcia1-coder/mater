@@ -20,7 +20,9 @@ from detector.config import load_spaces_file
 
 
 def _headers(key: str, prefer: str | None = None) -> dict:
-    h = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    h = {"apikey": key, "Content-Type": "application/json"}
+    if key.startswith("eyJ"):  # legacy JWT service_role key; sb_secret_* keys go in apikey only
+        h["Authorization"] = f"Bearer {key}"
     if prefer:
         h["Prefer"] = prefer
     return h

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from collections.abc import Iterator
 
 import cv2
@@ -46,6 +47,10 @@ from detector.video_source import frames
 from detector.vision_labeler import VisionLabeler
 
 log = logging.getLogger(__name__)
+
+# How often the full current status is pushed to Supabase (events cover the
+# changes in between; this covers startup and any dropped event).
+STATUS_SYNC_SECONDS = 60
 
 # By default torch (and this machine's other libraries) will happily claim
 # every core for CPU inference — fine in isolation, but this runs alongside
@@ -81,6 +86,8 @@ class DetectionPipeline:
         # the pipeline started.
         self.vision_labeler = vision_labeler
         self.parking_timers = ParkingTimers(state_path=timers_state_path, events_path=events_path, event_sink=event_sink)
+        self.event_sink = event_sink
+        self._last_status_sync = 0.0
         # Uncalibrated: raw-pixel velocity, which is systematically wrong
         # across a perspective-distorted frame. Calibrating via /calibrate
         # switches this to real meters/sec (see calibration.py).
@@ -290,6 +297,9 @@ class DetectionPipeline:
                 }
                 for space in self._cached_spaces
             }
+            if self.event_sink is not None and time.time() - self._last_status_sync >= STATUS_SYNC_SECONDS:
+                self._last_status_sync = time.time()
+                self.event_sink.enqueue_status(self.last_space_status)
             if self.show_spaces:
                 annotated = draw_spaces(annotated, self._cached_spaces, occupancy, status_by_label)
             if self.vision_labeler is not None:

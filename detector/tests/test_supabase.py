@@ -45,7 +45,7 @@ class FakeSupabase:
                 body = json.loads(raw) if raw else None
                 url = urlparse(self.path)
                 fake.requests.append({"path": url.path, "query": parse_qs(url.query), "headers": dict(self.headers), "body": body})
-                if url.path.endswith("/rpc/record_space_event"):
+                if "/rpc/" in url.path:
                     code = fake.script.pop(0) if fake.script else 200
                     return self._reply(code, 1 if code < 300 else {"message": "nope"})
                 table = url.path.rsplit("/", 1)[-1]
@@ -72,8 +72,8 @@ class FakeSupabase:
         self.url = f"http://127.0.0.1:{self.server.server_port}"
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
 
-    def rpc(self):
-        return [r for r in self.requests if r["path"].endswith("/rpc/record_space_event")]
+    def rpc(self, name="record_space_event"):
+        return [r for r in self.requests if r["path"].endswith(f"/rpc/{name}")]
 
     def close(self):
         self.server.shutdown()
@@ -97,7 +97,13 @@ class SinkTests(unittest.TestCase):
         self.assertEqual(req["body"]["p_elapsed"], 65.4)
         self.assertTrue(req["body"]["p_occurred_at"].endswith("+00:00"))  # timezone-aware UTC
         self.assertEqual(req["headers"]["apikey"], "svc-key")
-        self.assertEqual(req["headers"]["Authorization"], "Bearer svc-key")
+        self.assertNotIn("Authorization", req["headers"])   # not a JWT -> apikey only
+
+    def test_legacy_jwt_key_is_also_sent_as_bearer(self):
+        fake = FakeSupabase(); self.addCleanup(fake.close)
+        sink = SupabaseEventSink(fake.url, "eyJhbGciOi.payload.sig", "cam-1", retry_delays=())
+        sink.enqueue(EVENT); sink.flush()
+        self.assertEqual(fake.rpc()[0]["headers"]["Authorization"], "Bearer eyJhbGciOi.payload.sig")
 
     def test_server_error_is_retried_until_it_succeeds(self):
         fake = FakeSupabase(script=[500, 503, 200]); self.addCleanup(fake.close)
@@ -139,6 +145,27 @@ class SinkTests(unittest.TestCase):
         sent = [r["body"]["p_label"] for r in fake.rpc()]
         self.assertEqual(sent[-1], "5")          # newest survived
         self.assertLess(len(sent), 6)            # something was dropped
+
+    def test_status_snapshot_is_sent_to_its_own_rpc(self):
+        fake = FakeSupabase(); self.addCleanup(fake.close)
+        sink = self.make(fake)
+        sink.enqueue_status({"5": {"zone": "standard", "state": "parked", "elapsed": 33.5},
+                             "6": {"zone": "standard", "state": "empty", "elapsed": None}})
+        self.assertTrue(sink.flush())
+        body = fake.rpc("sync_space_status")[0]["body"]
+        self.assertEqual(body["p_camera_id"], "cam-1")
+        self.assertEqual(body["p_states"], [{"label": "5", "state": "parked", "elapsed": 33.5},
+                                            {"label": "6", "state": "empty", "elapsed": None}])
+        self.assertEqual(fake.rpc(), [])  # not mistaken for an event
+
+    def test_snapshot_is_delivered_after_events_enqueued_before_it(self):
+        fake = FakeSupabase(); self.addCleanup(fake.close)
+        sink = self.make(fake)
+        sink.enqueue(EVENT)
+        sink.enqueue_status({"7": {"state": "violation", "elapsed": 65.4}})
+        self.assertTrue(sink.flush())
+        order = [r["path"].rsplit("/", 1)[-1] for r in fake.requests]
+        self.assertEqual(order, ["record_space_event", "sync_space_status"])
 
     def test_from_env_requires_all_variables(self):
         for k in ("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_CAMERA_ID"):
