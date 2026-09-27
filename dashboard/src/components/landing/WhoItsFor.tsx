@@ -20,9 +20,13 @@ export default function WhoItsFor() {
     <SectionReveal className="relative mx-auto w-full max-w-6xl px-8 py-24 sm:px-12">
       <div
         aria-hidden="true"
-        className="landing-glow pointer-events-none absolute right-0 top-0 -z-10 h-[360px] w-[600px] -translate-y-1/4 translate-x-1/4 rounded-full bg-sky-500/10 blur-[110px]"
-        style={{ animationDelay: "-7s" }}
-      />
+        className="pointer-events-none absolute right-0 top-0 -z-10 h-[360px] w-[600px] -translate-y-1/4"
+      >
+        <div
+          className="landing-glow h-full w-full rounded-full bg-sky-500/10 blur-[110px]"
+          style={{ animationDelay: "-7s" }}
+        />
+      </div>
       <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">
         Who it&apos;s for
       </p>

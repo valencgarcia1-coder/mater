@@ -6,9 +6,13 @@ export default function CTASection() {
     <SectionReveal className="relative mx-auto w-full max-w-3xl px-8 py-32 text-center sm:px-12" id="contact">
       <div
         aria-hidden="true"
-        className="landing-glow pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[420px] w-[820px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/10 blur-[130px]"
-        style={{ animationDelay: "-2s" }}
-      />
+        className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[420px] w-[820px] -translate-x-1/2 -translate-y-1/2"
+      >
+        <div
+          className="landing-glow h-full w-full rounded-full bg-violet-500/10 blur-[130px]"
+          style={{ animationDelay: "-2s" }}
+        />
+      </div>
       <h2 className="font-sans text-5xl font-semibold leading-[1.1] tracking-tight text-white sm:text-6xl">
         Let the lot watch itself.
       </h2>

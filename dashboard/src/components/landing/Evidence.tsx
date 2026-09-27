@@ -20,9 +20,13 @@ export default function Evidence() {
     <SectionReveal className="relative mx-auto w-full max-w-6xl px-8 py-24 sm:px-12">
       <div
         aria-hidden="true"
-        className="landing-glow pointer-events-none absolute left-0 bottom-0 -z-10 h-[360px] w-[600px] -translate-x-1/4 translate-y-1/4 rounded-full bg-emerald-500/10 blur-[110px]"
-        style={{ animationDelay: "-3s" }}
-      />
+        className="pointer-events-none absolute left-0 bottom-0 -z-10 h-[360px] w-[600px] translate-y-1/4"
+      >
+        <div
+          className="landing-glow h-full w-full rounded-full bg-emerald-500/10 blur-[110px]"
+          style={{ animationDelay: "-3s" }}
+        />
+      </div>
       <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">
         Real footage
       </p>
