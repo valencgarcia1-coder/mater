@@ -18,10 +18,25 @@ const ICONS = {
       <rect x="13" y="14" width="8" height="6" rx="1.5" stroke="currentColor" />
     </svg>
   ),
+  map: (
+    <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.6} className="h-4 w-4">
+      <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z" stroke="currentColor" strokeLinejoin="round" />
+      <path d="M9 4v14M15 6v14" stroke="currentColor" />
+    </svg>
+  ),
   reports: (
     <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.6} className="h-4 w-4">
       <path d="M6 3h9l3 3v15H6z" stroke="currentColor" strokeLinejoin="round" />
       <path d="M9 12h6M9 16h6M9 8h3" stroke="currentColor" strokeLinecap="round" />
+    </svg>
+  ),
+  settings: (
+    <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.6} className="h-4 w-4">
+      <circle cx="12" cy="12" r="3" stroke="currentColor" />
+      <path
+        d="M19.4 13a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V19a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H4a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H10a1.7 1.7 0 0 0 1-1.55V4a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V10a1.7 1.7 0 0 0 1.55 1H20a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"
+        stroke="currentColor"
+      />
     </svg>
   ),
 };
@@ -33,15 +48,12 @@ type Item = {
   soon?: boolean;
 };
 
-// Camera Map and Settings live inside a specific property's own detail page
-// (/dashboard/properties/[id]) rather than as top-level nav — they only ever
-// mean something for one property at a time. This top level stays a short
-// list: cross-property overview, the property picker, and cross-property
-// reporting.
 const ITEMS: Item[] = [
   { key: "overview", label: "Overview", href: "/dashboard" },
   { key: "properties", label: "Properties", href: "/dashboard/properties" },
+  { key: "map", label: "Camera Map", href: "/dashboard/camera-map" },
   { key: "reports", label: "Reports", href: "/dashboard/reports", soon: true },
+  { key: "settings", label: "Settings", href: "/dashboard/settings" },
 ];
 
 export default function Sidebar({

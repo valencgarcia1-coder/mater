@@ -16,15 +16,17 @@ type Property = {
 };
 type Member = { user_id: string; role: string; full_name: string | null };
 
-const TABS = ["overview", "map", "reports", "settings"] as const;
+const TABS = ["overview", "reports"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
   overview: "Overview",
-  map: "Camera Map",
   reports: "Reports",
-  settings: "Settings",
 };
 
+// Camera Map and property creation ("Settings") are global tools now
+// (/dashboard/camera-map, /dashboard/settings) since a camera map spans every
+// property and settings is where a new one gets created — this page keeps
+// only what's genuinely specific to one property.
 export default function PropertyDetail({ propertyId }: { propertyId: string }) {
   const [supabase] = useState(() => createClient());
   const [tab, setTab] = useState<Tab>("overview");
@@ -61,11 +63,9 @@ export default function PropertyDetail({ propertyId }: { propertyId: string }) {
     return () => clearTimeout(t);
   }, [load]);
 
-  // Members are only fetched once Settings is opened, and joined to profiles
-  // by hand — property_members has no direct foreign key to profiles (both
-  // point at auth.users), so PostgREST can't embed it for us.
+  // Joined to profiles by hand — property_members has no direct foreign key
+  // to profiles (both point at auth.users), so PostgREST can't embed it.
   useEffect(() => {
-    if (tab !== "settings") return;
     let cancelled = false;
     async function loadMembers() {
       const { data: rows, error } = await supabase
@@ -94,7 +94,7 @@ export default function PropertyDetail({ propertyId }: { propertyId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [tab, supabase, propertyId]);
+  }, [supabase, propertyId]);
 
   if (!supabaseConfigured) {
     return (
@@ -172,65 +172,16 @@ export default function PropertyDetail({ propertyId }: { propertyId: string }) {
               <span className="font-mono text-lg text-white">{property.timezone}</span>
             </div>
           </div>
-          <p className="text-xs font-light text-white/30">
-            Live per-space status and the alerts inbox for the currently connected camera are on the{" "}
-            <Link href="/dashboard" className="text-white/60 underline underline-offset-4">
-              main Overview
-            </Link>{" "}
-            page — multi-property live views aren&apos;t wired up yet.
-          </p>
-        </div>
-      )}
 
-      {tab === "map" && (
-        <div className="flex flex-col gap-4">
-          {property.cameras.length === 0 && (
-            <p className="text-sm font-light text-white/30">No cameras configured for this property yet.</p>
-          )}
-          {property.cameras.map((cam) => (
-            <div key={cam.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <h3 className="font-mono text-[11px] uppercase tracking-wider text-white/40">{cam.name}</h3>
-              {cam.spaces.length === 0 ? (
-                <p className="mt-2 text-xs font-light text-white/30">No spaces configured on this camera.</p>
-              ) : (
-                <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
-                  {cam.spaces.map((s) => (
-                    <div
-                      key={s.id}
-                      title={s.zone}
-                      className="flex flex-col items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] py-2"
-                    >
-                      <span className="font-mono text-xs text-white">P{s.label}</span>
-                      <span className="font-mono text-[8px] uppercase tracking-wider text-white/30">
-                        {s.zone.replace("_", " ")}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-          <p className="text-xs font-light text-white/30">
-            A visual layout over the camera frame (instead of this grid) isn&apos;t built yet.
-          </p>
-        </div>
-      )}
-
-      {tab === "reports" && (
-        <p className="text-sm font-light text-white/30">
-          Historical reporting (violations over time, per-space utilization, false-positive rate) isn&apos;t
-          built yet — it needs a query over the space_events history table.
-        </p>
-      )}
-
-      {tab === "settings" && (
-        <div className="flex flex-col gap-4">
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <h3 className="font-mono text-[11px] uppercase tracking-wider text-white/40">Members</h3>
+            <h3 className="font-mono text-[11px] uppercase tracking-wider text-white/40">Team</h3>
             <div className="mt-3 flex flex-col gap-2">
               {members === null && <p className="text-sm font-light text-white/30">Loading…</p>}
               {members?.map((m) => (
-                <div key={m.user_id} className="flex items-center justify-between rounded-xl border border-white/10 px-3 py-2">
+                <div
+                  key={m.user_id}
+                  className="flex items-center justify-between rounded-xl border border-white/10 px-3 py-2"
+                >
                   <span className="text-sm text-white/80">{m.full_name ?? m.user_id}</span>
                   <span className="rounded-full border border-white/20 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-white/60">
                     {m.role}
@@ -242,10 +193,26 @@ export default function PropertyDetail({ propertyId }: { propertyId: string }) {
               Inviting members and changing roles from here isn&apos;t built yet — use the database directly for now.
             </p>
           </div>
+
           <p className="text-xs font-light text-white/30">
-            Zone thresholds and notification preferences aren&apos;t configurable from here yet.
+            Live per-space status and the alerts inbox for the currently connected camera are on the{" "}
+            <Link href="/dashboard" className="text-white/60 underline underline-offset-4">
+              main Overview
+            </Link>
+            , and this property&apos;s cameras/spaces are on the{" "}
+            <Link href="/dashboard/camera-map" className="text-white/60 underline underline-offset-4">
+              Camera Map
+            </Link>
+            .
           </p>
         </div>
+      )}
+
+      {tab === "reports" && (
+        <p className="text-sm font-light text-white/30">
+          Historical reporting (violations over time, per-space utilization, false-positive rate) isn&apos;t
+          built yet — it needs a query over the space_events history table.
+        </p>
       )}
     </div>
   );
