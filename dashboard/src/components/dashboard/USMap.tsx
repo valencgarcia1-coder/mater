@@ -157,9 +157,11 @@ export default function USMap({ properties }: { properties: Property[] }) {
         el.addEventListener("click", () => router.push(`/dashboard/properties/${p.id}`));
       });
 
-      if (pinned.length === 1) {
-        map.jumpTo({ center: [pinned[0].lng, pinned[0].lat], zoom: 9 });
-      } else if (pinned.length > 1) {
+      // Always start zoomed out to the whole country — a single property
+      // used to jump the initial view in close on it, which isn't what a
+      // first load should look like. Only auto-fit when there are enough
+      // spread-out properties that the default view might not show them all.
+      if (pinned.length > 2) {
         const bounds = pinned.reduce(
           (b, p) => b.extend([p.lng, p.lat]),
           new LngLatBounds([pinned[0].lng, pinned[0].lat], [pinned[0].lng, pinned[0].lat]),
