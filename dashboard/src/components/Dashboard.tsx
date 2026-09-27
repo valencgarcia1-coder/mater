@@ -11,7 +11,6 @@ import {
   type SpacesStatus,
 } from "@/lib/detector";
 import Shell from "./dashboard/Shell";
-import StatCards from "./dashboard/StatCards";
 import ActivityPanel from "./dashboard/ActivityPanel";
 import AlertsPanel from "./dashboard/AlertsPanel";
 import USMap from "./dashboard/USMap";
@@ -92,30 +91,25 @@ export default function Dashboard() {
         <USMap properties={properties} />
       </div>
 
-      <div className="pointer-events-none absolute inset-0 flex flex-col gap-4 p-6">
-        <div className="pointer-events-auto flex flex-wrap items-start justify-between gap-4">
-          <div className={`${overlayCard} px-5 py-3`}>
-            <h1 className="font-serif text-xl font-normal text-white">Overview</h1>
-            <p className="text-xs font-light text-white/40">Every property, at a glance.</p>
-          </div>
-        </div>
-
-        <div className="pointer-events-auto max-w-3xl">
-          <StatCards status={status} spaces={spaces} />
-        </div>
-
+      <div className="pointer-events-none absolute inset-0 flex flex-col p-4">
         {pinnedCount === 0 && properties.length > 0 && (
-          <div className={`${overlayCard} max-w-sm px-4 py-3`}>
+          <div className={`${overlayCard} pointer-events-auto max-w-sm self-start px-4 py-3`}>
             <p className="text-xs font-light text-white/40">
               No properties have coordinates yet — add lat/lng in Settings to place a pin.
             </p>
           </div>
         )}
 
-        <div className="pointer-events-none flex flex-1 items-start justify-end gap-4">
+        <div className="pointer-events-none flex flex-1 items-end justify-end">
           <div
-            className={`${overlayCard} pointer-events-auto flex w-80 flex-shrink-0 flex-col gap-4 overflow-y-auto p-4`}
+            className={`${overlayCard} pointer-events-auto flex w-72 flex-shrink-0 flex-col gap-3 overflow-y-auto p-3`}
           >
+            <div className="flex items-center justify-between gap-3 font-mono text-[10px] uppercase tracking-wider text-white/35">
+              <span>{status?.active_tracks ?? "—"} active</span>
+              <span>{violationCount} violations</span>
+              <span>{status ? status.fps_estimate.toFixed(1) : "—"} fps</span>
+            </div>
+            <div className="h-px bg-white/10" />
             {supabaseConfigured && <AlertsPanel />}
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
               <h3 className="font-mono text-[11px] uppercase tracking-wider text-white/40">Properties</h3>
