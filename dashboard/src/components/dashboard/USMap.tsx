@@ -111,7 +111,9 @@ export default function USMap({ properties }: { properties: Property[] }) {
       // package file via import.meta.url — Turbopack can't resolve that for
       // a file deep in node_modules, which fails silently as "Worker failed
       // to load". Serving the same prebuilt worker as a static asset (copied
-      // in at install time — see package.json's postinstall) and pointing at
+      // in at install time — see package.json's postinstall — along with the
+      // shared chunk it imports internally, or it 404s on its own dependency
+      // and fails the same way) and pointing at
       // it directly sidesteps that resolution entirely.
       setWorkerUrl("/maplibre-gl-worker.mjs");
 
