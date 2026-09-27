@@ -50,7 +50,15 @@ const STYLE: StyleSpecification = {
       type: "line",
       source: "ofm",
       "source-layer": "boundary",
-      filter: ["==", ["get", "admin_level"], 4],
+      // Maritime/disputed segments are real data but read as stray lines
+      // floating in open water or doubled-up borders to anyone not expecting
+      // them — excluded so the outline only shows land borders.
+      filter: [
+        "all",
+        ["==", ["get", "admin_level"], 4],
+        ["!=", ["get", "maritime"], 1],
+        ["!=", ["get", "disputed"], 1],
+      ],
       paint: { "line-color": "rgba(255,255,255,0.15)", "line-width": 0.6 },
     },
     {
@@ -58,7 +66,12 @@ const STYLE: StyleSpecification = {
       type: "line",
       source: "ofm",
       "source-layer": "boundary",
-      filter: ["<=", ["get", "admin_level"], 2],
+      filter: [
+        "all",
+        ["<=", ["get", "admin_level"], 2],
+        ["!=", ["get", "maritime"], 1],
+        ["!=", ["get", "disputed"], 1],
+      ],
       paint: { "line-color": "rgba(255,255,255,0.4)", "line-width": 1 },
     },
     {
@@ -124,7 +137,9 @@ export default function USMap({ properties }: { properties: Property[] }) {
         zoom: US_ZOOM,
         attributionControl: { compact: true },
       });
-      map.addControl(new NavigationControl({ showCompass: false }), "top-right");
+      // Bottom-left, not top-right: Dashboard.tsx floats its panel over the
+      // right side of the map, so top-right would sit right under it.
+      map.addControl(new NavigationControl({ showCompass: false }), "bottom-left");
       mapRef.current = map;
 
       const pinned = properties.filter(
