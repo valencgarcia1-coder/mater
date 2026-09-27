@@ -1,13 +1,17 @@
 import Nav from "@/components/landing/Nav";
 import Hero from "@/components/landing/Hero";
 import Intro from "@/components/landing/Intro";
-import WhoItsFor from "@/components/landing/WhoItsFor";
-import HowItWorks from "@/components/landing/HowItWorks";
-import Evidence from "@/components/landing/Evidence";
 import Features from "@/components/landing/Features";
+import HowItWorks from "@/components/landing/HowItWorks";
+import WhoItsFor from "@/components/landing/WhoItsFor";
+import Evidence from "@/components/landing/Evidence";
+import About from "@/components/landing/About";
 import CTASection from "@/components/landing/CTASection";
 import Footer from "@/components/landing/Footer";
 
+// Section order matches the nav's left-to-right order (Product → How It
+// Works → About), so jumping to any anchor scrolls forward, never back up
+// the page.
 export default function LandingPage() {
   return (
     <div
@@ -16,10 +20,11 @@ export default function LandingPage() {
       <Nav />
       <Hero />
       <Intro />
-      <WhoItsFor />
-      <HowItWorks />
-      <Evidence />
       <Features />
+      <HowItWorks />
+      <WhoItsFor />
+      <Evidence />
+      <About />
       <CTASection />
       <Footer />
     </div>

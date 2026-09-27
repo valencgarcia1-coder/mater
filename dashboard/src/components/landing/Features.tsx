@@ -79,9 +79,12 @@ export default function Features() {
         className="landing-glow pointer-events-none absolute left-0 bottom-0 -z-10 h-[320px] w-[560px] -translate-x-1/4 translate-y-1/3 rounded-full bg-sky-500/10 blur-[110px]"
         style={{ animationDelay: "-16s" }}
       />
+      <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">
+        Product
+      </p>
       <h2
         data-reveal-item
-        className="font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl"
+        className="mt-4 font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl"
       >
         One system for the entire parking operation.
       </h2>
