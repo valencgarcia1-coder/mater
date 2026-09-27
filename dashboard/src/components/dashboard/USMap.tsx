@@ -1,65 +1,148 @@
 "use client";
 
-import "leaflet/dist/leaflet.css";
+import "maplibre-gl/dist/maplibre-gl.css";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
+import type { Map as MLMap, StyleSpecification } from "maplibre-gl";
 
 type Property = { id: string; name: string; lat: number | null; lng: number | null };
 
-const US_CENTER: [number, number] = [39.5, -98.35];
-const US_ZOOM = 4;
+const US_CENTER: [number, number] = [-98.35, 39.5]; // MapLibre wants [lng, lat]
+const US_ZOOM = 3.4;
 
-// Esri's hosted "Dark Gray Canvas" basemap — free, no API key or account
-// (unlike Google Maps/Mapbox, and unlike CARTO's basemaps, which now require
-// signing in). Two layers: a base fill, then a reference layer for labels/
-// borders drawn on top of it. Note the {z}/{y}/{x} order — Esri's REST tile
-// scheme puts y before x, the reverse of most other providers.
-const BASE_URL = "https://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}";
-const REFERENCE_URL = "https://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}";
-const ATTRIBUTION = "&copy; Esri, HERE, Garmin, OpenStreetMap contributors";
+// A from-scratch style over OpenFreeMap's free vector tiles (OpenMapTiles
+// schema, no API key or account — unlike Google Maps/Mapbox, and unlike
+// CARTO's raster basemaps, which now require signing in). Built by hand
+// rather than borrowing one of OpenFreeMap's bundled themes (liberty/bright/
+// positron — all light) so it actually matches the app's black/white
+// palette, and deliberately sparse: no roads, buildings, or POIs, just
+// coastline, borders, and place names, so it reads as a clean brand map
+// rather than a road atlas.
+const STYLE: StyleSpecification = {
+  version: 8,
+  glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+  sources: {
+    ofm: { type: "vector", url: "https://tiles.openfreemap.org/planet" },
+  },
+  layers: [
+    { id: "bg", type: "background", paint: { "background-color": "#050505" } },
+    {
+      id: "land",
+      type: "fill",
+      source: "ofm",
+      "source-layer": "landcover",
+      paint: { "fill-color": "rgba(255,255,255,0.035)" },
+    },
+    {
+      id: "water",
+      type: "fill",
+      source: "ofm",
+      "source-layer": "water",
+      paint: { "fill-color": "#000000" },
+    },
+    {
+      id: "boundary-state",
+      type: "line",
+      source: "ofm",
+      "source-layer": "boundary",
+      filter: ["==", ["get", "admin_level"], 4],
+      paint: { "line-color": "rgba(255,255,255,0.08)", "line-width": 0.6 },
+    },
+    {
+      id: "boundary-country",
+      type: "line",
+      source: "ofm",
+      "source-layer": "boundary",
+      filter: ["<=", ["get", "admin_level"], 2],
+      paint: { "line-color": "rgba(255,255,255,0.25)", "line-width": 1 },
+    },
+    {
+      id: "place-state",
+      type: "symbol",
+      source: "ofm",
+      "source-layer": "place",
+      filter: ["==", ["get", "class"], "state"],
+      layout: {
+        "text-field": ["get", "name"],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 11,
+        "text-transform": "uppercase",
+        "text-letter-spacing": 0.08,
+      },
+      paint: { "text-color": "rgba(255,255,255,0.3)" },
+    },
+    {
+      id: "place-city",
+      type: "symbol",
+      source: "ofm",
+      "source-layer": "place",
+      minzoom: 5,
+      filter: ["in", ["get", "class"], ["literal", ["city"]]],
+      layout: {
+        "text-field": ["get", "name"],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 10,
+      },
+      paint: { "text-color": "rgba(255,255,255,0.25)" },
+    },
+  ],
+};
 
 export default function USMap({ properties }: { properties: Property[] }) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<import("leaflet").Map | null>(null);
+  const mapRef = useRef<MLMap | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function init() {
-      const L = (await import("leaflet")).default;
+      const { Map, Marker, Popup, LngLatBounds, NavigationControl, setWorkerUrl } = await import(
+        "maplibre-gl"
+      );
       if (cancelled || !containerRef.current || mapRef.current) return;
 
-      const map = L.map(containerRef.current, {
+      // MapLibre normally locates its worker script relative to its own
+      // package file via import.meta.url — Turbopack can't resolve that for
+      // a file deep in node_modules, which fails silently as "Worker failed
+      // to load". Serving the same prebuilt worker as a static asset (copied
+      // in at install time — see package.json's postinstall) and pointing at
+      // it directly sidesteps that resolution entirely.
+      setWorkerUrl("/maplibre-gl-worker.mjs");
+
+      const map = new Map({
+        container: containerRef.current,
+        style: STYLE,
         center: US_CENTER,
         zoom: US_ZOOM,
-        maxZoom: 16,
-        scrollWheelZoom: true,
+        attributionControl: { compact: true },
       });
-      L.tileLayer(BASE_URL, { attribution: ATTRIBUTION, maxZoom: 16 }).addTo(map);
-      L.tileLayer(REFERENCE_URL, { maxZoom: 16 }).addTo(map);
+      map.addControl(new NavigationControl({ showCompass: false }), "top-right");
       mapRef.current = map;
 
       const pinned = properties.filter(
         (p): p is Property & { lat: number; lng: number } => p.lat !== null && p.lng !== null,
       );
-      const icon = L.divIcon({
-        className: "",
-        html: '<div style="width:14px;height:14px;border-radius:9999px;background:#fff;border:2px solid rgba(255,255,255,0.35);box-shadow:0 0 0 6px rgba(255,255,255,0.08)"></div>',
-        iconSize: [14, 14],
-        iconAnchor: [7, 7],
-      });
 
       pinned.forEach((p) => {
-        const marker = L.marker([p.lat, p.lng], { icon }).addTo(map);
-        marker.bindTooltip(p.name, { direction: "top", offset: [0, -8] });
-        marker.on("click", () => router.push(`/dashboard/properties/${p.id}`));
+        const el = document.createElement("div");
+        el.style.cssText =
+          "width:14px;height:14px;border-radius:9999px;background:#fff;border:2px solid rgba(255,255,255,0.35);box-shadow:0 0 0 6px rgba(255,255,255,0.08);cursor:pointer";
+        const marker = new Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(map);
+        const popup = new Popup({ offset: 16, closeButton: false }).setText(p.name);
+        el.addEventListener("mouseenter", () => marker.setPopup(popup).togglePopup());
+        el.addEventListener("mouseleave", () => popup.remove());
+        el.addEventListener("click", () => router.push(`/dashboard/properties/${p.id}`));
       });
 
       if (pinned.length === 1) {
-        map.setView([pinned[0].lat, pinned[0].lng], 11);
+        map.jumpTo({ center: [pinned[0].lng, pinned[0].lat], zoom: 9 });
       } else if (pinned.length > 1) {
-        map.fitBounds(L.latLngBounds(pinned.map((p) => [p.lat, p.lng])), { padding: [40, 40] });
+        const bounds = pinned.reduce(
+          (b, p) => b.extend([p.lng, p.lat]),
+          new LngLatBounds([pinned[0].lng, pinned[0].lat], [pinned[0].lng, pinned[0].lat]),
+        );
+        map.fitBounds(bounds, { padding: 60 });
       }
     }
 
@@ -72,17 +155,5 @@ export default function USMap({ properties }: { properties: Property[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuild only when the pin set changes, not on router identity
   }, [properties]);
 
-  const pinnedCount = properties.filter((p) => p.lat !== null && p.lng !== null).length;
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <h3 className="font-mono text-[11px] uppercase tracking-wider text-white/40">All Properties</h3>
-      <div ref={containerRef} className="mt-3 h-[420px] w-full overflow-hidden rounded-xl" />
-      {pinnedCount === 0 && (
-        <p className="mt-2 text-xs font-light text-white/30">
-          No properties have coordinates yet — add lat/lng in Settings to place a pin.
-        </p>
-      )}
-    </div>
-  );
+  return <div ref={containerRef} className="h-full w-full" />;
 }

@@ -22,42 +22,40 @@ body {
   font-family: var(--font-sans-body), Arial, Helvetica, sans-serif;
 }
 
-/* Leaflet's default chrome (zoom buttons, attribution) is styled for a light
-   page — restyle it to match the dashboard's always-dark theme instead of
-   leaving light chips floating on a dark map. */
-.leaflet-container {
-  background: #000;
-  font-family: var(--font-sans-body), Arial, Helvetica, sans-serif;
-}
-/* Esri's dark basemap is blue-gray, not the app's true black/white — strip
-   the tint and push contrast so it reads as monochrome. */
-.leaflet-container .leaflet-tile-pane {
-  filter: grayscale(1) brightness(0.8) contrast(1.25);
-}
-.leaflet-control-zoom a {
+/* MapLibre's default chrome (zoom buttons, attribution, popups) is styled
+   for a light page — restyle it to match the dashboard's always-dark theme.
+   The map's own layers (land/water/labels) are styled directly in USMap.tsx
+   since that's a from-scratch style, not a borrowed light/dark theme. */
+.maplibregl-ctrl-group {
   background: rgba(20, 20, 20, 0.9) !important;
-  color: #f5f5f5 !important;
-  border-color: rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
 }
-.leaflet-control-zoom a:hover {
-  background: rgba(40, 40, 40, 0.95) !important;
+.maplibregl-ctrl-group button {
+  background: transparent !important;
 }
-.leaflet-control-attribution {
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+.maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+.maplibregl-ctrl-attrib {
   background: rgba(0, 0, 0, 0.6) !important;
   color: rgba(255, 255, 255, 0.4) !important;
 }
-.leaflet-control-attribution a {
+.maplibregl-ctrl-attrib a {
   color: rgba(255, 255, 255, 0.6) !important;
 }
-.leaflet-tooltip {
+.maplibregl-popup-content {
   background: rgba(20, 20, 20, 0.95) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  color: #f5f5f5 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f5f5f5;
   font-family: var(--font-geist-mono);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  box-shadow: none !important;
 }
-.leaflet-tooltip-top:before {
-  border-top-color: rgba(255, 255, 255, 0.15) !important;
+.maplibregl-popup-tip {
+  border-top-color: rgba(20, 20, 20, 0.95) !important;
 }

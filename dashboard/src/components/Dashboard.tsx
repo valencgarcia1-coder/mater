@@ -19,12 +19,14 @@ import { supabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/client";
 
 const POLL_MS = 1500;
+const overlayCard = "rounded-2xl border border-white/10 bg-black/70 backdrop-blur-md";
 
 type PropertyRow = { id: string; name: string; lat: number | null; lng: number | null };
 
-// The cross-property landing page: a map of everywhere Mater watches, plus
-// aggregate stats and updates. Stats/activity still come from the one
-// detector connection that exists today — see the comment in
+// The cross-property landing page: a full-bleed map of everywhere Mater
+// watches, with stats/alerts/activity floating over it instead of sitting in
+// a separate column — see Shell's fullBleed prop. Stats/activity still come
+// from the one detector connection that exists today; see the comment in
 // PropertyDetail.tsx about the single-tenant reality that'll need fixing
 // once there's a second camera.
 export default function Dashboard() {
@@ -82,24 +84,40 @@ export default function Dashboard() {
   const violationCount = Object.values(spaces).filter(
     (s) => s.state === "violation" || s.state === "tow_eligible",
   ).length;
+  const pinnedCount = properties.filter((p) => p.lat !== null && p.lng !== null).length;
 
   return (
-    <Shell connected={connected} violationCount={violationCount}>
-      <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="font-serif text-2xl font-normal text-white">Overview</h1>
-          <p className="mt-1 text-sm font-light text-white/40">Every property, at a glance.</p>
+    <Shell connected={connected} violationCount={violationCount} fullBleed>
+      <div className="absolute inset-0">
+        <USMap properties={properties} />
+      </div>
+
+      <div className="pointer-events-none absolute inset-0 flex flex-col gap-4 p-6">
+        <div className="pointer-events-auto flex flex-wrap items-start justify-between gap-4">
+          <div className={`${overlayCard} px-5 py-3`}>
+            <h1 className="font-serif text-xl font-normal text-white">Overview</h1>
+            <p className="text-xs font-light text-white/40">Every property, at a glance.</p>
+          </div>
         </div>
 
-        <StatCards status={status} spaces={spaces} />
+        <div className="pointer-events-auto max-w-3xl">
+          <StatCards status={status} spaces={spaces} />
+        </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <USMap properties={properties} />
+        {pinnedCount === 0 && properties.length > 0 && (
+          <div className={`${overlayCard} max-w-sm px-4 py-3`}>
+            <p className="text-xs font-light text-white/40">
+              No properties have coordinates yet — add lat/lng in Settings to place a pin.
+            </p>
           </div>
-          <div className="flex flex-col gap-6">
+        )}
+
+        <div className="pointer-events-none flex flex-1 items-start justify-end gap-4">
+          <div
+            className={`${overlayCard} pointer-events-auto flex w-80 flex-shrink-0 flex-col gap-4 overflow-y-auto p-4`}
+          >
             {supabaseConfigured && <AlertsPanel />}
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
               <h3 className="font-mono text-[11px] uppercase tracking-wider text-white/40">Properties</h3>
               <div className="mt-3 flex flex-col gap-1.5">
                 {properties.length === 0 ? (
@@ -109,7 +127,7 @@ export default function Dashboard() {
                     <Link
                       key={p.id}
                       href={`/dashboard/properties/${p.id}`}
-                      className="rounded-lg px-2 py-1.5 text-sm text-white/70 transition-colors hover:bg-white/[0.04] hover:text-white"
+                      className="rounded-lg px-2 py-1.5 text-sm text-white/70 transition-colors hover:bg-white/[0.08] hover:text-white"
                     >
                       {p.name}
                     </Link>
@@ -117,10 +135,9 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
+            <ActivityPanel events={events} />
           </div>
         </div>
-
-        <ActivityPanel events={events} />
       </div>
     </Shell>
   );

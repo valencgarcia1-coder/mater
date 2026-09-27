@@ -15,12 +15,16 @@ export default function Shell({
   children,
   connected: connectedOverride,
   violationCount: violationCountOverride,
+  fullBleed = false,
 }: {
   children: React.ReactNode;
   // A page that already polls the full feed (like Overview) passes its own
   // values instead of paying for a second poll here.
   connected?: boolean;
   violationCount?: number;
+  // Overview's map fills the whole content area edge-to-edge with its own
+  // overlay UI, instead of sitting inside the usual padded, scrolling column.
+  fullBleed?: boolean;
 }) {
   const selfPoll = connectedOverride === undefined;
   const [spaces, setSpaces] = useState<SpacesStatus>({});
@@ -57,7 +61,9 @@ export default function Shell({
       <TopBar connected={isConnected} />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar violationCount={violationCount} connected={isConnected} />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className={fullBleed ? "relative flex-1 overflow-hidden" : "flex-1 overflow-y-auto p-6"}>
+          {children}
+        </main>
       </div>
     </div>
   );
