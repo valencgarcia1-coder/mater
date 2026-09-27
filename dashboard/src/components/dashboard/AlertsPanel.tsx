@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { supabaseConfigured } from "@/lib/supabase/config";
 
 type Alert = {
   id: string;
@@ -27,13 +28,18 @@ function formatTime(iso: string) {
 // this user can see; the buttons are hidden for viewers, but the database
 // refuses their review calls regardless.
 export default function AlertsPanel({ propertyId }: { propertyId?: string } = {}) {
-  const [supabase] = useState(() => createClient());
+  // supabaseConfigured is checked before calling createClient() (not just
+  // before rendering below) — Next prerenders routes at build time even for
+  // client components, and createClient() throws immediately if the URL/key
+  // env vars aren't set, which would fail the build.
+  const [supabase] = useState(() => (supabaseConfigured ? createClient() : null));
   const [alerts, setAlerts] = useState<Alert[] | null>(null);
   const [canReview, setCanReview] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (!supabase) return;
     let query = supabase
       .from("alerts")
       .select("id, kind, status, created_at, spaces(label, zone), properties(name)")
@@ -50,24 +56,28 @@ export default function AlertsPanel({ propertyId }: { propertyId?: string } = {}
   }, [supabase, propertyId]);
 
   useEffect(() => {
+    if (!supabase) return;
+    const client = supabase; // narrowed non-null for the closure below
     const first = setTimeout(load, 0);
     const timer = setInterval(load, 30_000);
-    const channel = supabase
+    const channel = client
       .channel("alerts-inbox")
       .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => void load())
       .subscribe();
     return () => {
       clearTimeout(first);
       clearInterval(timer);
-      void supabase.removeChannel(channel);
+      void client.removeChannel(channel);
     };
   }, [supabase, load]);
 
   useEffect(() => {
+    if (!supabase) return;
+    const client = supabase; // narrowed non-null for the closure below
     async function loadRole() {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData } = await client.auth.getUser();
       if (!userData.user) return;
-      let query = supabase.from("property_members").select("role").eq("user_id", userData.user.id);
+      let query = client.from("property_members").select("role").eq("user_id", userData.user.id);
       if (propertyId) query = query.eq("property_id", propertyId);
       const { data } = await query;
       setCanReview((data ?? []).some((m) => m.role === "admin" || m.role === "reviewer"));
@@ -76,6 +86,7 @@ export default function AlertsPanel({ propertyId }: { propertyId?: string } = {}
   }, [supabase, propertyId]);
 
   async function review(id: string, status: "acknowledged" | "dismissed") {
+    if (!supabase) return;
     setBusyId(id);
     const { error } = await supabase.rpc("review_alert", { p_alert_id: id, p_status: status });
     if (error) setError(error.message);

@@ -14,7 +14,11 @@ type PropertyRow = { id: string; name: string };
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [supabase] = useState(() => createClient());
+  // supabaseConfigured is checked before calling createClient() (not just
+  // before rendering below) — Next prerenders this route at build time even
+  // though it's a client component, and createClient() throws immediately
+  // if the URL/key env vars aren't set, which would fail the build.
+  const [supabase] = useState(() => (supabaseConfigured ? createClient() : null));
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [timezone, setTimezone] = useState("America/Denver");
@@ -25,6 +29,7 @@ export default function SettingsPage() {
   const [properties, setProperties] = useState<PropertyRow[] | null>(null);
 
   const loadProperties = useCallback(async () => {
+    if (!supabase) return;
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
     const { data } = await supabase
@@ -45,6 +50,7 @@ export default function SettingsPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!supabase) return;
     setBusy(true);
     setError(null);
     const { data, error } = await supabase.rpc("create_property", {

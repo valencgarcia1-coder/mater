@@ -23,11 +23,16 @@ const ROLE_STYLE: Record<Row["role"], string> = {
 };
 
 export default function PropertiesList() {
-  const [supabase] = useState(() => createClient());
+  // supabaseConfigured is checked before calling createClient() (not just
+  // before rendering below) — Next prerenders this route at build time even
+  // though it's a client component, and createClient() throws immediately
+  // if the URL/key env vars aren't set, which would fail the build.
+  const [supabase] = useState(() => (supabaseConfigured ? createClient() : null));
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (!supabase) return;
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
     const { data, error } = await supabase

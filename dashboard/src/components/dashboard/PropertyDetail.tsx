@@ -50,7 +50,11 @@ const POLL_MS = 1500;
 // feed that exists. When a second property gets its own camera, this needs
 // to look up which detector endpoint belongs to which property.
 export default function PropertyDetail({ propertyId }: { propertyId: string }) {
-  const [supabase] = useState(() => createClient());
+  // supabaseConfigured is checked before calling createClient() (not just
+  // before rendering below) — Next prerenders this route at build time even
+  // though it's a client component, and createClient() throws immediately
+  // if the URL/key env vars aren't set, which would fail the build.
+  const [supabase] = useState(() => (supabaseConfigured ? createClient() : null));
   const [tab, setTab] = useState<Tab>("overview");
   const [property, setProperty] = useState<Property | null | undefined>(undefined);
   const [role, setRole] = useState<string | null>(null);
@@ -64,6 +68,7 @@ export default function PropertyDetail({ propertyId }: { propertyId: string }) {
   const [selectedSpace, setSelectedSpace] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (!supabase) return;
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
 
@@ -94,9 +99,11 @@ export default function PropertyDetail({ propertyId }: { propertyId: string }) {
   // Joined to profiles by hand — property_members has no direct foreign key
   // to profiles (both point at auth.users), so PostgREST can't embed it.
   useEffect(() => {
+    if (!supabase) return;
+    const client = supabase; // narrowed non-null for the closures below
     let cancelled = false;
     async function loadMembers() {
-      const { data: rows, error } = await supabase
+      const { data: rows, error } = await client
         .from("property_members")
         .select("user_id, role")
         .eq("property_id", propertyId);
@@ -106,7 +113,7 @@ export default function PropertyDetail({ propertyId }: { propertyId: string }) {
       }
       const ids = (rows ?? []).map((r) => r.user_id);
       const { data: profiles } = ids.length
-        ? await supabase.from("profiles").select("id, full_name").in("id", ids)
+        ? await client.from("profiles").select("id, full_name").in("id", ids)
         : { data: [] };
       if (cancelled) return;
       const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
