@@ -21,6 +21,7 @@ detector/calibration.json
 detector/events.jsonl
 detector/disagreements.jsonl
 detector/disagreement_crops/
+detector/training/label_sheets/
 detector/training_data/
 detector/training/pklot_raw/
 detector/training/pklot_crops/
