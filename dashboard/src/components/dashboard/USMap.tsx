@@ -115,8 +115,9 @@ export default function USMap({ properties }: { properties: Property[] }) {
     let cancelled = false;
 
     async function init() {
-      const { Map, Marker, Popup, LngLatBounds, NavigationControl, AttributionControl, setWorkerUrl } =
-        await import("maplibre-gl");
+      const { Map, Marker, Popup, LngLatBounds, NavigationControl, setWorkerUrl } = await import(
+        "maplibre-gl"
+      );
       if (cancelled || !containerRef.current || mapRef.current) return;
 
       // MapLibre normally locates its worker script relative to its own
@@ -134,13 +135,11 @@ export default function USMap({ properties }: { properties: Property[] }) {
         style: STYLE,
         center: US_CENTER,
         zoom: US_ZOOM,
-        attributionControl: false,
+        attributionControl: { compact: true },
       });
-      // Both controls go bottom-left: Dashboard.tsx floats its panel over the
-      // right side of the map (full-height now), so anything on the right —
-      // including the default attribution position — sits underneath it.
+      // Bottom-left, not top-right: Dashboard.tsx floats its panel over the
+      // right side of the map, so top-right would sit right under it.
       map.addControl(new NavigationControl({ showCompass: false }), "bottom-left");
-      map.addControl(new AttributionControl({ compact: true }), "bottom-left");
       mapRef.current = map;
 
       const pinned = properties.filter(

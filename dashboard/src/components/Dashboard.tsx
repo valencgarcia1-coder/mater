@@ -100,9 +100,10 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* mb-6 keeps the panel's bottom edge clear of the map's attribution text */}
         <div className="pointer-events-none flex flex-1 items-end justify-end">
           <div
-            className={`${overlayCard} pointer-events-auto flex max-h-full w-72 flex-shrink-0 flex-col gap-3 overflow-y-auto p-3`}
+            className={`${overlayCard} pointer-events-auto mb-6 flex max-h-[calc(100%-1.5rem)] w-72 flex-shrink-0 flex-col gap-3 overflow-y-auto p-3`}
           >
             <div className="flex items-center justify-between gap-3 font-mono text-[10px] uppercase tracking-wider text-white/35">
               <span>{status?.active_tracks ?? "—"} active</span>
