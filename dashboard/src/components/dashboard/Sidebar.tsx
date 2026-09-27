@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
 const ICONS = {
   overview: (
     <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.6} className="h-4 w-4">
@@ -7,22 +10,12 @@ const ICONS = {
       <path d="M6 10v9a1 1 0 0 0 1 1h4v-6h2v6h4a1 1 0 0 0 1-1v-9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
-  feeds: (
+  properties: (
     <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.6} className="h-4 w-4">
-      <rect x="3" y="6" width="14" height="12" rx="2" stroke="currentColor" />
-      <path d="M21 9.5 17 12l4 2.5v-5Z" stroke="currentColor" strokeLinejoin="round" />
-    </svg>
-  ),
-  violations: (
-    <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.6} className="h-4 w-4">
-      <path d="M12 3 2 20h20L12 3Z" stroke="currentColor" strokeLinejoin="round" />
-      <path d="M12 10v4M12 17h.01" stroke="currentColor" strokeLinecap="round" />
-    </svg>
-  ),
-  map: (
-    <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.6} className="h-4 w-4">
-      <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z" stroke="currentColor" strokeLinejoin="round" />
-      <path d="M9 4v14M15 6v14" stroke="currentColor" />
+      <rect x="3" y="4" width="8" height="8" rx="1.5" stroke="currentColor" />
+      <rect x="13" y="4" width="8" height="8" rx="1.5" stroke="currentColor" />
+      <rect x="3" y="14" width="8" height="6" rx="1.5" stroke="currentColor" />
+      <rect x="13" y="14" width="8" height="6" rx="1.5" stroke="currentColor" />
     </svg>
   ),
   reports: (
@@ -31,31 +24,24 @@ const ICONS = {
       <path d="M9 12h6M9 16h6M9 8h3" stroke="currentColor" strokeLinecap="round" />
     </svg>
   ),
-  settings: (
-    <svg viewBox="0 0 24 24" fill="none" strokeWidth={1.6} className="h-4 w-4">
-      <circle cx="12" cy="12" r="3" stroke="currentColor" />
-      <path
-        d="M19.4 13a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V19a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H4a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H10a1.7 1.7 0 0 0 1-1.55V4a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V10a1.7 1.7 0 0 0 1.55 1H20a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"
-        stroke="currentColor"
-      />
-    </svg>
-  ),
 };
 
 type Item = {
   key: keyof typeof ICONS;
   label: string;
-  active?: boolean;
+  href: string;
   soon?: boolean;
 };
 
+// Camera Map and Settings live inside a specific property's own detail page
+// (/dashboard/properties/[id]) rather than as top-level nav — they only ever
+// mean something for one property at a time. This top level stays a short
+// list: cross-property overview, the property picker, and cross-property
+// reporting.
 const ITEMS: Item[] = [
-  { key: "overview", label: "Overview", active: true },
-  { key: "feeds", label: "Live Feeds", soon: true },
-  { key: "violations", label: "Violations" },
-  { key: "map", label: "Camera Map", soon: true },
-  { key: "reports", label: "Reports", soon: true },
-  { key: "settings", label: "Settings", soon: true },
+  { key: "overview", label: "Overview", href: "/dashboard" },
+  { key: "properties", label: "Properties", href: "/dashboard/properties" },
+  { key: "reports", label: "Reports", href: "/dashboard/reports", soon: true },
 ];
 
 export default function Sidebar({
@@ -65,11 +51,13 @@ export default function Sidebar({
   violationCount: number;
   connected: boolean;
 }) {
+  const pathname = usePathname();
+
   return (
     <aside className="flex w-56 flex-shrink-0 flex-col justify-between border-r border-white/10 px-3 py-5">
       <nav className="flex flex-col gap-1">
         {ITEMS.map((item) => {
-          const badge = item.key === "violations" ? violationCount : null;
+          const badge = item.key === "overview" ? violationCount : null;
           const base =
             "flex items-center gap-3 rounded-xl px-3 py-2.5 font-mono text-[11px] uppercase tracking-wider transition-colors";
           if (item.soon) {
@@ -87,11 +75,14 @@ export default function Sidebar({
               </div>
             );
           }
+          const active =
+            item.href === "/dashboard" ? pathname === "/dashboard" : pathname?.startsWith(item.href);
           return (
-            <button
+            <Link
               key={item.key}
-              className={`${base} text-left ${
-                item.active
+              href={item.href}
+              className={`${base} ${
+                active
                   ? "bg-white/[0.06] text-white"
                   : "text-white/50 hover:bg-white/[0.04] hover:text-white/80"
               }`}
@@ -103,7 +94,7 @@ export default function Sidebar({
                   {badge}
                 </span>
               )}
-            </button>
+            </Link>
           );
         })}
       </nav>

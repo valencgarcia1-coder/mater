@@ -9,8 +9,7 @@ import {
   type DetectorStatus,
   type SpacesStatus,
 } from "@/lib/detector";
-import TopBar from "./dashboard/TopBar";
-import Sidebar from "./dashboard/Sidebar";
+import Shell from "./dashboard/Shell";
 import StatCards from "./dashboard/StatCards";
 import CameraPanel from "./dashboard/CameraPanel";
 import ActivityPanel from "./dashboard/ActivityPanel";
@@ -62,36 +61,30 @@ export default function Dashboard() {
   ).length;
 
   return (
-    <div className="flex h-screen flex-col bg-black text-white">
-      <TopBar connected={connected} />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar violationCount={violationCount} connected={connected} />
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="flex flex-col gap-6">
-            <StatCards status={status} spaces={spaces} />
+    <Shell connected={connected} violationCount={violationCount}>
+      <div className="flex flex-col gap-6">
+        <StatCards status={status} spaces={spaces} />
 
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              <div className="flex flex-col gap-6 lg:col-span-2">
-                <CameraPanel status={status} />
-                <SpaceDetailTabs spaces={spaces} selected={selectedSpace} />
-              </div>
-              <div className="flex flex-col gap-6">
-                {supabaseConfigured && <AlertsPanel />}
-                <ActivityPanel events={events} />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3">
-              <h2 className="font-mono text-[11px] uppercase tracking-wider text-white/40">
-                Spaces
-              </h2>
-              <SpaceGrid spaces={spaces} selected={selectedSpace} onSelect={setSelectedSpace} />
-            </div>
-
-            <CameraGrid connected={connected} />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="flex flex-col gap-6 lg:col-span-2">
+            <CameraPanel status={status} />
+            <SpaceDetailTabs spaces={spaces} selected={selectedSpace} />
           </div>
-        </main>
+          <div className="flex flex-col gap-6">
+            {supabaseConfigured && <AlertsPanel />}
+            <ActivityPanel events={events} />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <h2 className="font-mono text-[11px] uppercase tracking-wider text-white/40">
+            Spaces
+          </h2>
+          <SpaceGrid spaces={spaces} selected={selectedSpace} onSelect={setSelectedSpace} />
+        </div>
+
+        <CameraGrid connected={connected} />
       </div>
-    </div>
+    </Shell>
   );
 }

@@ -1,0 +1,252 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { supabaseConfigured } from "@/lib/supabase/config";
+
+type Space = { id: string; label: string; zone: string };
+type Camera = { id: string; name: string; spaces: Space[] };
+type Property = {
+  id: string;
+  name: string;
+  address: string | null;
+  timezone: string;
+  cameras: Camera[];
+};
+type Member = { user_id: string; role: string; full_name: string | null };
+
+const TABS = ["overview", "map", "reports", "settings"] as const;
+type Tab = (typeof TABS)[number];
+const TAB_LABEL: Record<Tab, string> = {
+  overview: "Overview",
+  map: "Camera Map",
+  reports: "Reports",
+  settings: "Settings",
+};
+
+export default function PropertyDetail({ propertyId }: { propertyId: string }) {
+  const [supabase] = useState(() => createClient());
+  const [tab, setTab] = useState<Tab>("overview");
+  const [property, setProperty] = useState<Property | null | undefined>(undefined);
+  const [role, setRole] = useState<string | null>(null);
+  const [members, setMembers] = useState<Member[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+
+    const [{ data: prop, error: propErr }, { data: membership }] = await Promise.all([
+      supabase
+        .from("properties")
+        .select("id, name, address, timezone, cameras(id, name, spaces(id, label, zone))")
+        .eq("id", propertyId)
+        .maybeSingle(),
+      supabase
+        .from("property_members")
+        .select("role")
+        .eq("property_id", propertyId)
+        .eq("user_id", userData.user.id)
+        .maybeSingle(),
+    ]);
+
+    if (propErr) setError(propErr.message);
+    setProperty((prop as unknown as Property) ?? null);
+    setRole(membership?.role ?? null);
+  }, [supabase, propertyId]);
+
+  useEffect(() => {
+    const t = setTimeout(load, 0);
+    return () => clearTimeout(t);
+  }, [load]);
+
+  // Members are only fetched once Settings is opened, and joined to profiles
+  // by hand — property_members has no direct foreign key to profiles (both
+  // point at auth.users), so PostgREST can't embed it for us.
+  useEffect(() => {
+    if (tab !== "settings") return;
+    let cancelled = false;
+    async function loadMembers() {
+      const { data: rows, error } = await supabase
+        .from("property_members")
+        .select("user_id, role")
+        .eq("property_id", propertyId);
+      if (error || cancelled) {
+        if (error) setError(error.message);
+        return;
+      }
+      const ids = (rows ?? []).map((r) => r.user_id);
+      const { data: profiles } = ids.length
+        ? await supabase.from("profiles").select("id, full_name").in("id", ids)
+        : { data: [] };
+      if (cancelled) return;
+      const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+      setMembers(
+        (rows ?? []).map((r) => ({
+          user_id: r.user_id,
+          role: r.role,
+          full_name: nameById.get(r.user_id) ?? null,
+        })),
+      );
+    }
+    void loadMembers();
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, supabase, propertyId]);
+
+  if (!supabaseConfigured) {
+    return (
+      <p className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm font-light text-white/50">
+        Properties need Supabase configured on this deployment.
+      </p>
+    );
+  }
+
+  if (property === undefined) {
+    return <p className="text-sm font-light text-white/30">Loading…</p>;
+  }
+  if (property === null) {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-sm font-light text-white/50">
+          {error ?? "This property doesn't exist, or you don't have access to it."}
+        </p>
+        <Link href="/dashboard/properties" className="text-sm text-white underline underline-offset-4">
+          Back to properties
+        </Link>
+      </div>
+    );
+  }
+
+  const spaceCount = property.cameras.reduce((n, c) => n + c.spaces.length, 0);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <Link
+          href="/dashboard/properties"
+          className="font-mono text-[10px] uppercase tracking-wider text-white/30 hover:text-white/60"
+        >
+          ← Properties
+        </Link>
+        <div className="mt-1 flex flex-wrap items-center gap-3">
+          <h1 className="font-serif text-2xl font-normal text-white">{property.name}</h1>
+          {role && (
+            <span className="rounded-full border border-white/20 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-white/60">
+              {role}
+            </span>
+          )}
+        </div>
+        {property.address && <p className="mt-1 text-sm font-light text-white/40">{property.address}</p>}
+      </div>
+
+      <div className="flex items-center gap-1 border-b border-white/10 pb-3">
+        {TABS.map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`rounded-full px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors ${
+              tab === t ? "bg-white/[0.08] text-white" : "text-white/40 hover:text-white/70"
+            }`}
+          >
+            {TAB_LABEL[t]}
+          </button>
+        ))}
+      </div>
+
+      {tab === "overview" && (
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap gap-4">
+            <div className="flex flex-1 flex-col gap-1 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-white/40">Cameras</span>
+              <span className="font-mono text-3xl text-white">{property.cameras.length}</span>
+            </div>
+            <div className="flex flex-1 flex-col gap-1 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-white/40">Spaces</span>
+              <span className="font-mono text-3xl text-white">{spaceCount}</span>
+            </div>
+            <div className="flex flex-1 flex-col gap-1 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-white/40">Timezone</span>
+              <span className="font-mono text-lg text-white">{property.timezone}</span>
+            </div>
+          </div>
+          <p className="text-xs font-light text-white/30">
+            Live per-space status and the alerts inbox for the currently connected camera are on the{" "}
+            <Link href="/dashboard" className="text-white/60 underline underline-offset-4">
+              main Overview
+            </Link>{" "}
+            page — multi-property live views aren&apos;t wired up yet.
+          </p>
+        </div>
+      )}
+
+      {tab === "map" && (
+        <div className="flex flex-col gap-4">
+          {property.cameras.length === 0 && (
+            <p className="text-sm font-light text-white/30">No cameras configured for this property yet.</p>
+          )}
+          {property.cameras.map((cam) => (
+            <div key={cam.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <h3 className="font-mono text-[11px] uppercase tracking-wider text-white/40">{cam.name}</h3>
+              {cam.spaces.length === 0 ? (
+                <p className="mt-2 text-xs font-light text-white/30">No spaces configured on this camera.</p>
+              ) : (
+                <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
+                  {cam.spaces.map((s) => (
+                    <div
+                      key={s.id}
+                      title={s.zone}
+                      className="flex flex-col items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] py-2"
+                    >
+                      <span className="font-mono text-xs text-white">P{s.label}</span>
+                      <span className="font-mono text-[8px] uppercase tracking-wider text-white/30">
+                        {s.zone.replace("_", " ")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+          <p className="text-xs font-light text-white/30">
+            A visual layout over the camera frame (instead of this grid) isn&apos;t built yet.
+          </p>
+        </div>
+      )}
+
+      {tab === "reports" && (
+        <p className="text-sm font-light text-white/30">
+          Historical reporting (violations over time, per-space utilization, false-positive rate) isn&apos;t
+          built yet — it needs a query over the space_events history table.
+        </p>
+      )}
+
+      {tab === "settings" && (
+        <div className="flex flex-col gap-4">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <h3 className="font-mono text-[11px] uppercase tracking-wider text-white/40">Members</h3>
+            <div className="mt-3 flex flex-col gap-2">
+              {members === null && <p className="text-sm font-light text-white/30">Loading…</p>}
+              {members?.map((m) => (
+                <div key={m.user_id} className="flex items-center justify-between rounded-xl border border-white/10 px-3 py-2">
+                  <span className="text-sm text-white/80">{m.full_name ?? m.user_id}</span>
+                  <span className="rounded-full border border-white/20 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-white/60">
+                    {m.role}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs font-light text-white/30">
+              Inviting members and changing roles from here isn&apos;t built yet — use the database directly for now.
+            </p>
+          </div>
+          <p className="text-xs font-light text-white/30">
+            Zone thresholds and notification preferences aren&apos;t configurable from here yet.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
