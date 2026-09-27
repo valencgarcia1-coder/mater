@@ -48,13 +48,14 @@ export default function AlertsPanel() {
   }, [supabase]);
 
   useEffect(() => {
-    void load();
+    const first = setTimeout(load, 0);
     const timer = setInterval(load, 30_000);
     const channel = supabase
       .channel("alerts-inbox")
       .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => void load())
       .subscribe();
     return () => {
+      clearTimeout(first);
       clearInterval(timer);
       void supabase.removeChannel(channel);
     };
