@@ -5,6 +5,7 @@ export default function About() {
     <SectionReveal id="about" className="relative isolate mx-auto w-full max-w-3xl px-8 py-28 text-center sm:px-12">
       <div
         aria-hidden="true"
+        data-reveal-item
         className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[380px] w-[760px] -translate-x-1/2 -translate-y-1/2"
       >
         <div

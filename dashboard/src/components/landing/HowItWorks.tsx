@@ -62,10 +62,11 @@ export default function HowItWorks() {
     <SectionReveal id="how-it-works" className="relative isolate mx-auto w-full max-w-6xl px-8 py-24 sm:px-12">
       <div
         aria-hidden="true"
+        data-reveal-item
         className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[340px] w-[700px] -translate-x-1/2 -translate-y-1/3"
       >
         <div
-          className="landing-glow h-full w-full rounded-full bg-violet-400/12 blur-[95px]"
+          className="landing-glow h-full w-full rounded-full bg-emerald-400/15 blur-[95px]"
           style={{ animationDelay: "-13s" }}
         />
       </div>
