@@ -142,6 +142,15 @@ export default function USMap({ properties }: { properties: Property[] }) {
       map.addControl(new NavigationControl({ showCompass: false }), "bottom-left");
       mapRef.current = map;
 
+      // With compact:true, MapLibre still renders the attribution expanded
+      // (full text) until the first drag, which is what silently collapses
+      // it to just the "i" icon — there's no option to start collapsed.
+      // Stripping the "show" class right away reproduces that same
+      // post-drag state from the start instead of waiting for one.
+      containerRef.current
+        .querySelector(".maplibregl-ctrl-attrib")
+        ?.classList.remove("maplibregl-compact-show");
+
       const pinned = properties.filter(
         (p): p is Property & { lat: number; lng: number } => p.lat !== null && p.lng !== null,
       );
