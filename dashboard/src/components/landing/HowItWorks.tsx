@@ -61,7 +61,7 @@ export default function HowItWorks() {
   return (
     <SectionReveal className="mx-auto w-full max-w-6xl px-8 py-24 sm:px-12">
       <p className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">How it works</p>
-      <h2 className="mt-4 max-w-2xl font-serif text-3xl font-semibold text-white sm:text-4xl">
+      <h2 className="mt-4 max-w-2xl font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
         From a parked car to a dispatched tow — with a person deciding at every step.
       </h2>
 

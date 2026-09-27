@@ -8,6 +8,9 @@ export default function Hero() {
       <HeroVisual />
       <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/25 to-black/55" />
       <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/25 to-transparent" />
+      {/* Fades the video to pure black at the bottom edge so the next
+          section starts from black rather than cutting the frame off mid-image. */}
+      <div className="absolute inset-x-0 bottom-0 h-64 bg-gradient-to-b from-transparent to-black sm:h-80" />
 
       <div className="relative z-20 flex h-full flex-col justify-center px-10 sm:px-16">
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-white/60">

@@ -4,7 +4,7 @@ import GetStartedButton from "./GetStartedButton";
 export default function CTASection() {
   return (
     <SectionReveal className="mx-auto w-full max-w-3xl px-8 py-32 text-center sm:px-12" id="contact">
-      <h2 className="font-serif text-5xl font-semibold text-white sm:text-6xl">
+      <h2 className="font-sans text-5xl font-semibold leading-[1.1] tracking-tight text-white sm:text-6xl">
         Let the lot watch itself.
       </h2>
       <p className="mt-5 text-white/60">

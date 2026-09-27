@@ -69,7 +69,7 @@ const ITEMS = [
 export default function Features() {
   return (
     <SectionReveal className="mx-auto w-full max-w-6xl px-8 py-28 sm:px-12" id="product">
-      <h2 className="font-serif text-4xl font-semibold text-white sm:text-5xl">
+      <h2 className="font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
         One system for the entire parking operation.
       </h2>
       <div className="mt-14 grid gap-10 border-t border-neutral-900 pt-10 sm:grid-cols-2 lg:grid-cols-3">

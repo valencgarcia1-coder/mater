@@ -17,9 +17,13 @@ const AUDIENCES = [
 
 export default function WhoItsFor() {
   return (
-    <SectionReveal className="mx-auto w-full max-w-6xl px-8 py-24 sm:px-12">
+    <SectionReveal className="relative mx-auto w-full max-w-6xl px-8 py-24 sm:px-12">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute right-0 top-0 -z-10 h-[360px] w-[600px] -translate-y-1/4 translate-x-1/4 rounded-full bg-sky-500/10 blur-[110px]"
+      />
       <p className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">Who it&apos;s for</p>
-      <h2 className="mt-4 font-serif text-3xl font-semibold text-white sm:text-4xl">
+      <h2 className="mt-4 font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
         Built for whoever&apos;s on the hook when a lot goes unenforced.
       </h2>
       <div className="mt-12 grid gap-8 border-t border-white/10 pt-10 sm:grid-cols-3">
