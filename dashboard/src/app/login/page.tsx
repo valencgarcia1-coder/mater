@@ -60,7 +60,7 @@ export default function LoginPage() {
         <Link href="/" className="mb-10 flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/mater-mark.svg" alt="" className="h-6 w-auto" />
-          <span className="font-serif text-lg">mater</span>
+          <span className="font-serif text-xl italic font-medium tracking-tight">Mater</span>
         </Link>
 
         <h1 className="font-serif text-4xl font-normal tracking-tight">

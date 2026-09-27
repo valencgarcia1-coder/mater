@@ -19,15 +19,8 @@ export default function TopBar({ connected }: { connected: boolean }) {
         <Link href="/" className="flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/mater-mark.svg" alt="Mater" className="h-6 w-auto" />
-          <span className="font-serif text-lg text-white">mater</span>
+          <span className="font-serif text-xl italic font-medium tracking-tight text-white">Mater</span>
         </Link>
-        <span className="h-5 w-px bg-white/10" />
-        {/* Only one real camera source exists right now, so this is a label,
-            not a functioning multi-property switcher — honest about that
-            rather than faking a dropdown with fabricated properties. */}
-        <span className="font-mono text-xs uppercase tracking-wider text-white/50">
-          Test Lot
-        </span>
       </div>
       <div className="flex items-center gap-5">
         <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-white/50">

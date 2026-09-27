@@ -3,7 +3,7 @@ const LINKS = ["Product", "Fleet", "Pricing", "About"];
 export default function Footer() {
   return (
     <footer className="mx-auto w-full max-w-6xl px-8 py-16 sm:px-12">
-      <span className="font-serif text-2xl text-white">mater</span>
+      <span className="font-serif text-2xl italic font-medium tracking-tight text-white">Mater</span>
       <nav className="mt-6 flex flex-wrap gap-6">
         {LINKS.map((label) => (
           <a

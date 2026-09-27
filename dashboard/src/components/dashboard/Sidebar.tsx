@@ -57,17 +57,11 @@ const ITEMS: Item[] = [
   { key: "settings", label: "Settings", href: "/dashboard/settings" },
 ];
 
-export default function Sidebar({
-  violationCount,
-  connected,
-}: {
-  violationCount: number;
-  connected: boolean;
-}) {
+export default function Sidebar({ violationCount }: { violationCount: number }) {
   const pathname = usePathname();
 
   return (
-    <aside className="flex w-56 flex-shrink-0 flex-col justify-between border-r border-white/10 px-3 py-5">
+    <aside className="flex w-56 flex-shrink-0 flex-col border-r border-white/10 px-3 py-5">
       <nav className="flex flex-col gap-1">
         {ITEMS.map((item) => {
           const badge = item.key === "overview" ? violationCount : null;
@@ -111,11 +105,6 @@ export default function Sidebar({
           );
         })}
       </nav>
-
-      <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 font-mono text-[10px] uppercase tracking-wider text-white/50">
-        <span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-emerald-500" : "bg-white/20"}`} />
-        {connected ? "System online" : "Connecting"}
-      </div>
     </aside>
   );
 }

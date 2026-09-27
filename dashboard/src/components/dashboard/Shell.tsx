@@ -60,7 +60,7 @@ export default function Shell({
     <div className="flex h-screen flex-col bg-black text-white">
       <TopBar connected={isConnected} />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar violationCount={violationCount} connected={isConnected} />
+        <Sidebar violationCount={violationCount} />
         <main className={fullBleed ? "relative flex-1 overflow-hidden" : "flex-1 overflow-y-auto p-6"}>
           {children}
         </main>
