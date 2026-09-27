@@ -163,6 +163,10 @@ class DetectionPipeline:
         self.config.spaces = spaces
         self._pending_spaces = spaces
         self._cached_spaces = None  # rebuilt on the next frame, once size is known
+        # Streaks are keyed by label; an edited space (or a label reused for a
+        # different location after a delete + re-add) must not inherit the old
+        # geometry's hold state.
+        self.occupancy_debouncer = OccupancyDebouncer()
 
     def process_frame(self, frame: np.ndarray) -> tuple[np.ndarray, sv.Detections]:
         if self._cached_spaces is None:
