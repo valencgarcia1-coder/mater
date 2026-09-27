@@ -14,6 +14,8 @@ import Sidebar from "./dashboard/Sidebar";
 import StatCards from "./dashboard/StatCards";
 import CameraPanel from "./dashboard/CameraPanel";
 import ActivityPanel from "./dashboard/ActivityPanel";
+import AlertsPanel from "./dashboard/AlertsPanel";
+import { supabaseConfigured } from "@/lib/supabase/config";
 import SpaceDetailTabs from "./dashboard/SpaceDetailTabs";
 import CameraGrid from "./dashboard/CameraGrid";
 import SpaceGrid from "./SpaceGrid";
@@ -73,7 +75,10 @@ export default function Dashboard() {
                 <CameraPanel status={status} />
                 <SpaceDetailTabs spaces={spaces} selected={selectedSpace} />
               </div>
-              <ActivityPanel events={events} />
+              <div className="flex flex-col gap-6">
+                {supabaseConfigured && <AlertsPanel />}
+                <ActivityPanel events={events} />
+              </div>
             </div>
 
             <div className="flex flex-col gap-3">

@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { supabaseConfigured } from "@/lib/supabase/config";
+import UserMenu from "./UserMenu";
 
 export default function TopBar({ connected }: { connected: boolean }) {
   const [now, setNow] = useState<Date | null>(null);
@@ -39,6 +41,7 @@ export default function TopBar({ connected }: { connected: boolean }) {
             <div>{now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
           </div>
         )}
+        {supabaseConfigured && <UserMenu />}
       </div>
     </header>
   );

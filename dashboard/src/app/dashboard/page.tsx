@@ -1,10 +1,15 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import Dashboard from "@/components/Dashboard";
+import { supabaseConfigured } from "@/lib/supabase/config";
+import { createClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = {
-  title: "Live Ops",
-};
-
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  if (supabaseConfigured) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) redirect("/login");
+  }
   return <Dashboard />;
 }
