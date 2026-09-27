@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { DetectorEvent } from "@/lib/detector";
 
 const DOT: Record<string, string> = {
@@ -12,11 +13,24 @@ function timeOf(e: DetectorEvent) {
   return e.detected_at.slice(11, 16);
 }
 
-export default function ActivityPanel({ events }: { events: DetectorEvent[] }) {
+// linkPropertyId: which property's page a row should open on click. The
+// detector isn't scoped per-property yet (one detector, one camera feed —
+// see the single-tenant comment in PropertyDetail.tsx), so every event here
+// really does belong to whichever property is passed in; there's no per-row
+// property to look up.
+export default function ActivityPanel({
+  events,
+  linkPropertyId,
+}: {
+  events: DetectorEvent[];
+  linkPropertyId?: string;
+}) {
   const violations = events
     .filter((e) => e.event === "VIOLATION" || e.event === "TOW_ELIGIBLE")
     .slice(0, 4);
   const recent = events.slice(0, 6);
+  const href = linkPropertyId ? `/dashboard/properties/${linkPropertyId}` : undefined;
+  const Row = href ? Link : "div";
 
   return (
     <div className="flex flex-col gap-4">
@@ -29,11 +43,12 @@ export default function ActivityPanel({ events }: { events: DetectorEvent[] }) {
         ) : (
           <div className="mt-3 flex flex-col gap-2.5">
             {violations.map((e, i) => (
-              <div
+              <Row
                 key={`${e.space}-${e.detected_at}-${i}`}
-                className={`border-l-2 pl-3 ${
+                href={href as string}
+                className={`block border-l-2 pl-3 ${
                   e.event === "TOW_ELIGIBLE" ? "border-red-500" : "border-amber-500"
-                }`}
+                } ${href ? "-ml-1 rounded-r-md pl-4 transition-colors hover:bg-white/[0.05]" : ""}`}
               >
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-xs text-white">Space P{e.space}</span>
@@ -46,7 +61,7 @@ export default function ActivityPanel({ events }: { events: DetectorEvent[] }) {
                   {e.stationary_duration !== null ? ` · ${e.stationary_duration}s stationary` : ""}
                 </p>
                 <p className="font-mono text-[10px] text-white/25">{timeOf(e)}</p>
-              </div>
+              </Row>
             ))}
           </div>
         )}
@@ -61,16 +76,19 @@ export default function ActivityPanel({ events }: { events: DetectorEvent[] }) {
         ) : (
           <div className="mt-3 flex flex-col gap-2">
             {recent.map((e, i) => (
-              <div
+              <Row
                 key={`${e.space}-${e.detected_at}-${i}-alert`}
-                className="flex items-start gap-2 font-mono text-[11px]"
+                href={href as string}
+                className={`flex items-start gap-2 font-mono text-[11px] ${
+                  href ? "-mx-1 rounded-md px-1 transition-colors hover:bg-white/[0.05]" : ""
+                }`}
               >
                 <span className={`mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full ${DOT[e.event] ?? "bg-white/30"}`} />
                 <span className="text-white/60">
                   Space P{e.space} {e.event.toLowerCase().replace("_", " ")}
                 </span>
                 <span className="ml-auto flex-shrink-0 text-white/25">{timeOf(e)}</span>
-              </div>
+              </Row>
             ))}
           </div>
         )}
