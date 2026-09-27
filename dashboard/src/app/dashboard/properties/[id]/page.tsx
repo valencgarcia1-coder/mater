@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import Shell from "@/components/dashboard/Shell";
 import PropertyDetail from "@/components/dashboard/PropertyDetail";
 import { supabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
@@ -17,9 +16,5 @@ export default async function PropertyPage({
     } = await supabase.auth.getUser();
     if (!user) redirect("/login");
   }
-  return (
-    <Shell>
-      <PropertyDetail propertyId={id} />
-    </Shell>
-  );
+  return <PropertyDetail propertyId={id} />;
 }

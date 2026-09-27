@@ -26,7 +26,7 @@ function formatTime(iso: string) {
 // Rows come straight from the database, so row-level security decides what
 // this user can see; the buttons are hidden for viewers, but the database
 // refuses their review calls regardless.
-export default function AlertsPanel() {
+export default function AlertsPanel({ propertyId }: { propertyId?: string } = {}) {
   const [supabase] = useState(() => createClient());
   const [alerts, setAlerts] = useState<Alert[] | null>(null);
   const [canReview, setCanReview] = useState(false);
@@ -34,18 +34,20 @@ export default function AlertsPanel() {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from("alerts")
       .select("id, kind, status, created_at, spaces(label, zone), properties(name)")
       .in("status", ["open", "acknowledged"])
       .order("created_at", { ascending: false });
+    if (propertyId) query = query.eq("property_id", propertyId);
+    const { data, error } = await query;
     if (error) {
       setError(error.message);
     } else {
       setError(null);
       setAlerts(data as unknown as Alert[]);
     }
-  }, [supabase]);
+  }, [supabase, propertyId]);
 
   useEffect(() => {
     const first = setTimeout(load, 0);
@@ -65,11 +67,13 @@ export default function AlertsPanel() {
     async function loadRole() {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) return;
-      const { data } = await supabase.from("property_members").select("role").eq("user_id", userData.user.id);
+      let query = supabase.from("property_members").select("role").eq("user_id", userData.user.id);
+      if (propertyId) query = query.eq("property_id", propertyId);
+      const { data } = await query;
       setCanReview((data ?? []).some((m) => m.role === "admin" || m.role === "reviewer"));
     }
     void loadRole();
-  }, [supabase]);
+  }, [supabase, propertyId]);
 
   async function review(id: string, status: "acknowledged" | "dismissed") {
     setBusyId(id);

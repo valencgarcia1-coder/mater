@@ -48,10 +48,11 @@ type Item = {
   soon?: boolean;
 };
 
+// The Overview page itself is the property map now, so there's no separate
+// Camera Map nav item — Properties/[id] carries each property's own cameras.
 const ITEMS: Item[] = [
   { key: "overview", label: "Overview", href: "/dashboard" },
   { key: "properties", label: "Properties", href: "/dashboard/properties" },
-  { key: "map", label: "Camera Map", href: "/dashboard/camera-map" },
   { key: "reports", label: "Reports", href: "/dashboard/reports", soon: true },
   { key: "settings", label: "Settings", href: "/dashboard/settings" },
 ];

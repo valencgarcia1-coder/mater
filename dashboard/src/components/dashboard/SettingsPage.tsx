@@ -18,6 +18,8 @@ export default function SettingsPage() {
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [timezone, setTimezone] = useState("America/Denver");
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [properties, setProperties] = useState<PropertyRow[] | null>(null);
@@ -50,12 +52,28 @@ export default function SettingsPage() {
       p_address: address || null,
       p_timezone: timezone,
     });
-    setBusy(false);
     if (error) {
+      setBusy(false);
       setError(error.message);
       return;
     }
-    router.push(`/dashboard/properties/${data as string}`);
+    const propertyId = data as string;
+    // create_property doesn't take coordinates (it predates the map), so the
+    // pin is set as a follow-up update — safe because the RPC already made
+    // this user that property's admin, and admins can update it.
+    if (lat.trim() && lng.trim()) {
+      const { error: coordError } = await supabase
+        .from("properties")
+        .update({ lat: Number(lat), lng: Number(lng) })
+        .eq("id", propertyId);
+      if (coordError) {
+        setBusy(false);
+        setError(`Property created, but saving coordinates failed: ${coordError.message}`);
+        return;
+      }
+    }
+    setBusy(false);
+    router.push(`/dashboard/properties/${propertyId}`);
   }
 
   if (!supabaseConfigured) {
@@ -86,6 +104,33 @@ export default function SettingsPage() {
           <span className={labelClass}>Address</span>
           <input className={inputClass} value={address} onChange={(e) => setAddress(e.target.value)} />
         </label>
+        <div className="grid grid-cols-2 gap-4">
+          <label className="flex flex-col gap-2">
+            <span className={labelClass}>Latitude</span>
+            <input
+              className={inputClass}
+              type="number"
+              step="any"
+              placeholder="40.5975"
+              value={lat}
+              onChange={(e) => setLat(e.target.value)}
+            />
+          </label>
+          <label className="flex flex-col gap-2">
+            <span className={labelClass}>Longitude</span>
+            <input
+              className={inputClass}
+              type="number"
+              step="any"
+              placeholder="-111.5835"
+              value={lng}
+              onChange={(e) => setLng(e.target.value)}
+            />
+          </label>
+        </div>
+        <p className="-mt-2 text-xs font-light text-white/30">
+          Places a pin on the Overview map. Leave blank to add it later.
+        </p>
         <label className="flex flex-col gap-2">
           <span className={labelClass}>Timezone</span>
           <input className={inputClass} value={timezone} onChange={(e) => setTimezone(e.target.value)} />
