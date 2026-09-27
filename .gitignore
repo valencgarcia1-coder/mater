@@ -19,7 +19,11 @@ detector/spaces.yaml
 detector/parking_timers.json
 detector/calibration.json
 detector/events.jsonl
+detector/disagreements.jsonl
 detector/training_data/
+detector/training/pklot_raw/
+detector/training/pklot_crops/
+detector/training/*.pt
 
 # Secrets
 .env

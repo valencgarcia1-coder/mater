@@ -26,6 +26,7 @@ from flask_cors import CORS
 
 from detector.config import CameraConfig, SpaceRegion
 from detector.pipeline import DetectionPipeline
+from detector.space_classifier import SpaceClassifier
 from detector.vision_labeler import VisionLabeler
 
 log = logging.getLogger(__name__)
@@ -430,9 +431,17 @@ class LiveFeed:
     """Owns the pipeline and the single latest annotated JPEG, produced by
     one background thread and read by any number of HTTP clients."""
 
-    def __init__(self, config: CameraConfig, read_plates: bool, vision_labeler: VisionLabeler | None = None) -> None:
+    def __init__(
+        self,
+        config: CameraConfig,
+        read_plates: bool,
+        vision_labeler: VisionLabeler | None = None,
+        space_classifier: SpaceClassifier | None = None,
+    ) -> None:
         self.config = config
-        self.pipeline = DetectionPipeline(config, read_plates=read_plates, vision_labeler=vision_labeler)
+        self.pipeline = DetectionPipeline(
+            config, read_plates=read_plates, vision_labeler=vision_labeler, space_classifier=space_classifier
+        )
         self._lock = threading.Lock()
         self._latest_jpeg: bytes | None = None
         self._latest_raw_jpeg: bytes | None = None  # unannotated, for the space editor
@@ -493,6 +502,7 @@ def create_app(
     read_plates: bool = True,
     spaces_file: str = "spaces.yaml",
     vision_labeler: VisionLabeler | None = None,
+    space_classifier: SpaceClassifier | None = None,
 ) -> Flask:
     app = Flask(__name__)
     # The dashboard (a separate Next.js dev server, different origin) needs
@@ -501,7 +511,7 @@ def create_app(
     # and enumerating routes here is just something to forget to update the
     # next time an endpoint is added.
     CORS(app, resources={r"/*": {"origins": "*"}})
-    feed = LiveFeed(config, read_plates=read_plates, vision_labeler=vision_labeler)
+    feed = LiveFeed(config, read_plates=read_plates, vision_labeler=vision_labeler, space_classifier=space_classifier)
     feed.start()
 
     @app.route("/")
@@ -651,6 +661,10 @@ def main() -> None:
         "--vision-label-interval", type=float, default=90.0, help="seconds between API calls, PER SPACE"
     )
     parser.add_argument("--vision-label-dataset-dir", default="training_data")
+    # Off unless given a checkpoint (training/train_classifier.py produces
+    # one): runs a trained per-space image classifier alongside the geometric
+    # test and only trusts a space's occupancy when the two agree.
+    parser.add_argument("--occupancy-classifier", help="path to a trained occupancy_classifier.pt")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -685,7 +699,18 @@ def main() -> None:
             args.vision_label_dataset_dir,
         )
 
-    app = create_app(config, read_plates=not args.no_plates, spaces_file=args.spaces_file, vision_labeler=vision_labeler)
+    space_classifier = None
+    if args.occupancy_classifier:
+        space_classifier = SpaceClassifier(args.occupancy_classifier)
+        log.info("occupancy classifier enabled: %s", args.occupancy_classifier)
+
+    app = create_app(
+        config,
+        read_plates=not args.no_plates,
+        spaces_file=args.spaces_file,
+        vision_labeler=vision_labeler,
+        space_classifier=space_classifier,
+    )
     app.run(host="127.0.0.1", port=args.port, threaded=True)
 
 

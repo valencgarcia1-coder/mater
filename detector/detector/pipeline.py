@@ -30,9 +30,10 @@ from detector.config import VEHICLE_CLASSES, CameraConfig, SpaceRegion
 from detector.identity_confidence import compute_crowded_flags
 from detector.parking_timers import ParkingTimers
 from detector.plate import PlateRead, PlateReader
+from detector.space_classifier import SpaceClassifier
 from detector.spaces import (
     OccupancyDebouncer,
-    SpaceAppearanceModel,
+    OccupancyFuser,
     build_space_masks,
     compute_occupancy,
     draw_reference_points,
@@ -62,9 +63,16 @@ class DetectionPipeline:
         calibration_path: str = "calibration.json",
         events_path: str = "events.jsonl",
         vision_labeler: VisionLabeler | None = None,
+        space_classifier: SpaceClassifier | None = None,
+        disagreements_path: str = "disagreements.jsonl",
     ) -> None:
         self.config = config
         self.events_path = events_path
+        # Off unless passed in. When on, a trained per-space image classifier
+        # runs every frame and a space's occupancy is only trusted when it
+        # agrees with the geometric test — see OccupancyFuser in spaces.py.
+        self.space_classifier = space_classifier
+        self.occupancy_fuser = OccupancyFuser(disagreements_path=disagreements_path)
         # Off unless explicitly passed in: this makes real, billed vision-
         # model API calls (see vision_labeler.py) to bootstrap a labeled
         # occupancy dataset. It should never turn on silently just because
@@ -78,13 +86,11 @@ class DetectionPipeline:
         threshold = STATIONARY_SPEED_M_PER_SEC if self.calibration.is_calibrated else STATIONARY_SPEED_PX_PER_SEC
         self.velocity_tracker = VelocityTracker(stationary_threshold=threshold)
         self.class_smoother = ClassSmoother()
-        # Occlusion hardening (see spaces.py): corroborates a detector-
-        # positive space reading against that space's own pixels, and
-        # requires the combined signal to hold briefly before it's trusted
-        # enough to start a space's clock. Per-process, in-memory state,
-        # same as velocity_tracker/class_smoother above — nothing here needs
-        # to survive a restart the way parking_timers' clocks do.
-        self.appearance_model = SpaceAppearanceModel()
+        # Requires a positive occupancy reading to hold briefly before it's
+        # trusted enough to start a space's clock — see spaces.py. Per-
+        # process, in-memory state, same as velocity_tracker/class_smoother
+        # above — nothing here needs to survive a restart the way
+        # parking_timers' clocks do.
         self.occupancy_debouncer = OccupancyDebouncer()
         self.model = YOLO(config.model)
         self.tracker = sv.ByteTrack(
@@ -237,33 +243,29 @@ class DetectionPipeline:
 
             # top/front/back, read off each vehicle's own mask when one
             # exists (falls back to box-derived approximations otherwise —
-            # see vehicle_reference_points). Computed for every detection
-            # (not just stationary ones) since these also drive the visual
-            # dots below, independent of occupancy.
+            # see vehicle_reference_points). No longer used for occupancy
+            # itself (see spaces.py — simplified back to ground-only
+            # containment); computed for every detection purely to drive the
+            # visual dots below.
             masks_or_none = detections.mask if detections.mask is not None else [None] * len(detections.xyxy)
             all_vehicle_points = [vehicle_reference_points(tuple(box), m) for box, m in zip(detections.xyxy, masks_or_none)]
 
             # Occupancy and the parking timer always run, regardless of the
             # show_spaces display toggle — a space's clock shouldn't pause
-            # just because you're not currently looking at the overlay.
-            # Ground point, not box/mask area: a space's own visible area is
-            # routinely blocked by a nearer row of cars even when the
-            # vehicles' own detections never overlap each other, which
-            # starves an area-overlap test of the coverage it needs. A
-            # vehicle's ground-contact point only needs a few visible pixels
-            # near its base to place — see spaces.py's module docstring.
-            stationary_vehicle_points = [pts for pts, st in zip(all_vehicle_points, stationary) if st]
-            occupancy = compute_occupancy(
-                self._cached_spaces,
-                stationary_vehicle_points,
-                frame=frame,
-                appearance_model=self.appearance_model,
-            )
+            # just because you're not currently looking at the overlay. A
+            # space is occupied when a stationary vehicle's ground point is
+            # literally inside its polygon — see spaces.py's module docstring.
+            stationary_ground_points = [pt for pt, st in zip(ground_points, stationary) if st]
+            occupancy = compute_occupancy(self._cached_spaces, stationary_ground_points)
+            if self.space_classifier is not None:
+                occupancy = self.occupancy_fuser.fuse(
+                    occupancy, self.space_classifier.predict(frame, self._cached_spaces)
+                )
             # Confirmed, not raw: a space only counts toward the parking
-            # clock (and the overlay below) once the corroborated signal has
-            # held for OccupancyDebouncer.CONFIRM_HOLD_SECONDS — see
-            # spaces.py for why the raw per-frame reading alone isn't
-            # trustworthy enough to start that clock.
+            # clock (and the overlay below) once the reading has held for
+            # OccupancyDebouncer.CONFIRM_HOLD_SECONDS — see spaces.py for why
+            # a single frame's reading alone isn't trustworthy enough to
+            # start that clock.
             occupancy = self.occupancy_debouncer.update(occupancy)
             zones = zone_by_label(self._cached_spaces)
             occupied_zones = {label: zones[label] for label, occ in occupancy.items() if occ}
