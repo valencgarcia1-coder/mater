@@ -29,6 +29,11 @@ body {
   background: #000;
   font-family: var(--font-sans-body), Arial, Helvetica, sans-serif;
 }
+/* Esri's dark basemap is blue-gray, not the app's true black/white — strip
+   the tint and push contrast so it reads as monochrome. */
+.leaflet-container .leaflet-tile-pane {
+  filter: grayscale(1) brightness(0.8) contrast(1.25);
+}
 .leaflet-control-zoom a {
   background: rgba(20, 20, 20, 0.9) !important;
   color: #f5f5f5 !important;
