@@ -22,6 +22,7 @@ two agree.
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import dataclass
 
@@ -260,8 +261,19 @@ class OccupancyFuser:
     informative examples of where each system fails.
     """
 
-    def __init__(self, disagreements_path: str | None = "disagreements.jsonl") -> None:
+    def __init__(
+        self,
+        disagreements_path: str | None = "disagreements.jsonl",
+        crops_dir: str | None = "disagreement_crops",
+        cooldown_seconds: float = 10.0,
+    ) -> None:
         self._path = disagreements_path
+        self._crops_dir = crops_dir
+        # A space flickering in and out of disagreement would otherwise write
+        # a near-identical crop every frame; one per space per cooldown is
+        # plenty of signal for later labeling.
+        self._cooldown = cooldown_seconds
+        self._last_logged_at: dict[str, float] = {}
         self._last: dict[str, bool] = {}
         self._disagreeing: set[str] = set()
 
@@ -269,6 +281,8 @@ class OccupancyFuser:
         self,
         geometric: dict[str, bool],
         classifier: dict[str, tuple[bool, float]],
+        frame: np.ndarray | None = None,
+        spaces: list[_CachedSpace] | None = None,
     ) -> dict[str, bool]:
         fused: dict[str, bool] = {}
         for label, geo in geometric.items():
@@ -284,7 +298,7 @@ class OccupancyFuser:
             fused[label] = self._last.get(label, False)
             if label not in self._disagreeing:
                 self._disagreeing.add(label)
-                self._log_disagreement(label, geo, clf_occupied, clf_confidence)
+                self._log_disagreement(label, geo, clf_occupied, clf_confidence, frame, spaces)
 
         # Replacing (not updating) drops labels no longer configured, so an
         # edited/removed space can't leave stale state behind for a reused label.
@@ -292,18 +306,53 @@ class OccupancyFuser:
         self._disagreeing &= set(fused)
         return fused
 
-    def _log_disagreement(self, label: str, geometric: bool, classifier: bool, confidence: float) -> None:
+    def _log_disagreement(
+        self,
+        label: str,
+        geometric: bool,
+        classifier: bool,
+        confidence: float,
+        frame: np.ndarray | None,
+        spaces: list[_CachedSpace] | None,
+    ) -> None:
         if not self._path:
             return
+        now = time.time()
+        if now - self._last_logged_at.get(label, -float("inf")) < self._cooldown:
+            return
+        self._last_logged_at[label] = now
+
         record = {
-            "detected_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()),
+            "detected_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now)),
             "space": label,
             "geometric": "occupied" if geometric else "vacant",
             "classifier": "occupied" if classifier else "vacant",
             "classifier_confidence": round(confidence, 3),
+            "crop": self._save_crop(label, now, frame, spaces),
         }
         with open(self._path, "a") as f:
             f.write(json.dumps(record) + "\n")
+
+    def _save_crop(
+        self, label: str, ts: float, frame: np.ndarray | None, spaces: list[_CachedSpace] | None
+    ) -> str | None:
+        """The exact pixels the classifier judged (the space's bbox crop,
+        unresized), saved so this disagreement can be hand-labeled later and
+        used to fine-tune on Mater's own camera."""
+        if not self._crops_dir or frame is None or spaces is None:
+            return None
+        space = next((s for s in spaces if s.label == label), None)
+        if space is None:
+            return None
+        h, w = frame.shape[:2]
+        x1, y1, x2, y2 = space.bbox
+        x1, y1, x2, y2 = max(0, int(x1)), max(0, int(y1)), min(w, int(x2)), min(h, int(y2))
+        if x2 <= x1 or y2 <= y1:
+            return None
+        os.makedirs(self._crops_dir, exist_ok=True)
+        path = os.path.join(self._crops_dir, f"{label}_{int(ts * 1000)}.jpg")
+        cv2.imwrite(path, frame[y1:y2, x1:x2])
+        return path
 
 
 def compute_occupancy(spaces: list[_CachedSpace], ground_points: list[tuple[float, float]]) -> dict[str, bool]:

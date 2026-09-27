@@ -65,6 +65,7 @@ class DetectionPipeline:
         vision_labeler: VisionLabeler | None = None,
         space_classifier: SpaceClassifier | None = None,
         disagreements_path: str = "disagreements.jsonl",
+        disagreement_crops_dir: str = "disagreement_crops",
     ) -> None:
         self.config = config
         self.events_path = events_path
@@ -72,7 +73,7 @@ class DetectionPipeline:
         # runs every frame and a space's occupancy is only trusted when it
         # agrees with the geometric test — see OccupancyFuser in spaces.py.
         self.space_classifier = space_classifier
-        self.occupancy_fuser = OccupancyFuser(disagreements_path=disagreements_path)
+        self.occupancy_fuser = OccupancyFuser(disagreements_path=disagreements_path, crops_dir=disagreement_crops_dir)
         # Off unless explicitly passed in: this makes real, billed vision-
         # model API calls (see vision_labeler.py) to bootstrap a labeled
         # occupancy dataset. It should never turn on silently just because
@@ -259,7 +260,10 @@ class DetectionPipeline:
             occupancy = compute_occupancy(self._cached_spaces, stationary_ground_points)
             if self.space_classifier is not None:
                 occupancy = self.occupancy_fuser.fuse(
-                    occupancy, self.space_classifier.predict(frame, self._cached_spaces)
+                    occupancy,
+                    self.space_classifier.predict(frame, self._cached_spaces),
+                    frame=frame,
+                    spaces=self._cached_spaces,
                 )
             # Confirmed, not raw: a space only counts toward the parking
             # clock (and the overlay below) once the reading has held for
