@@ -9,10 +9,17 @@ type CompareSliderProps = {
   afterSrc: string;
   afterAlt: string;
   afterLabel: string;
+  /** Controlled position (0-100). Omit to let the slider manage its own drag state. */
+  value?: number;
+  onChange?: (pos: number) => void;
+  /** When false, drag/click input is ignored — used while a parent is driving `value` via scroll. */
+  interactive?: boolean;
 };
 
 // A draggable day/night comparison instead of two static screenshots —
-// the proof becomes something you interact with, not just look at.
+// the proof becomes something you interact with, not just look at. Can run
+// uncontrolled (its own drag state) or controlled (a parent passes `value`,
+// e.g. to drive it from scroll position instead of pointer input).
 export default function CompareSlider({
   beforeSrc,
   beforeAlt,
@@ -20,29 +27,38 @@ export default function CompareSlider({
   afterSrc,
   afterAlt,
   afterLabel,
+  value,
+  onChange,
+  interactive = true,
 }: CompareSliderProps) {
-  const [pos, setPos] = useState(50);
+  const [internalPos, setInternalPos] = useState(50);
+  const pos = value ?? internalPos;
+  const setPos = onChange ?? setInternalPos;
   const ref = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
-  const updateFromClientX = useCallback((clientX: number) => {
-    const el = ref.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const pct = ((clientX - rect.left) / rect.width) * 100;
-    setPos(Math.min(100, Math.max(0, pct)));
-  }, []);
+  const updateFromClientX = useCallback(
+    (clientX: number) => {
+      const el = ref.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const pct = ((clientX - rect.left) / rect.width) * 100;
+      setPos(Math.min(100, Math.max(0, pct)));
+    },
+    [setPos],
+  );
 
   return (
     <div
       ref={ref}
-      className="relative aspect-video w-full cursor-ew-resize touch-none select-none overflow-hidden rounded-2xl"
+      className={`relative aspect-video w-full touch-none select-none overflow-hidden rounded-2xl ${interactive ? "cursor-ew-resize" : ""}`}
       onMouseDown={(e) => {
+        if (!interactive) return;
         dragging.current = true;
         updateFromClientX(e.clientX);
       }}
       onMouseMove={(e) => {
-        if (dragging.current) updateFromClientX(e.clientX);
+        if (interactive && dragging.current) updateFromClientX(e.clientX);
       }}
       onMouseUp={() => {
         dragging.current = false;
@@ -50,8 +66,8 @@ export default function CompareSlider({
       onMouseLeave={() => {
         dragging.current = false;
       }}
-      onTouchStart={(e) => updateFromClientX(e.touches[0].clientX)}
-      onTouchMove={(e) => updateFromClientX(e.touches[0].clientX)}
+      onTouchStart={(e) => interactive && updateFromClientX(e.touches[0].clientX)}
+      onTouchMove={(e) => interactive && updateFromClientX(e.touches[0].clientX)}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={afterSrc} alt={afterAlt} className="absolute inset-0 h-full w-full object-cover" draggable={false} />

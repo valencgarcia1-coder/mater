@@ -69,6 +69,21 @@ const ITEMS = [
   },
 ];
 
+const AUDIENCES = [
+  {
+    name: "Property managers",
+    desc: "Every space watched and timestamped — nothing gets towed without your review.",
+  },
+  {
+    name: "Tow operators",
+    desc: "Know which lots have towable vehicles, with evidence attached, before you drive there.",
+  },
+  {
+    name: "HOAs & gated communities",
+    desc: "Enforce fire lanes, guest parking, and permit zones without hiring someone to walk the lot.",
+  },
+];
+
 export default function Features() {
   return (
     <SectionReveal className="relative isolate mx-auto w-full max-w-6xl px-8 py-28 sm:px-12" id="product">
@@ -111,6 +126,18 @@ export default function Features() {
             <h3 className={`font-medium text-white ${item.big ? "text-lg" : "text-sm"}`}>{item.name}</h3>
             <p className={`text-white/50 ${item.big ? "max-w-sm text-base" : "text-sm"}`}>{item.desc}</p>
           </TiltCard>
+        ))}
+      </div>
+
+      <div className="mt-16 grid gap-8 border-t border-white/10 pt-10 sm:grid-cols-3">
+        <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/40 sm:col-span-3">
+          Who it&apos;s for
+        </p>
+        {AUDIENCES.map((a) => (
+          <div key={a.name} data-reveal-item className="flex flex-col gap-2">
+            <h3 className="text-sm font-medium text-white">{a.name}</h3>
+            <p className="text-sm text-white/50">{a.desc}</p>
+          </div>
         ))}
       </div>
     </SectionReveal>

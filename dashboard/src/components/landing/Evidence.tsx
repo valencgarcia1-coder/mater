@@ -1,12 +1,12 @@
 import SectionReveal from "./SectionReveal";
 import RevealText from "./RevealText";
-import CompareSlider from "./CompareSlider";
+import EvidencePin from "./EvidencePin";
 
 // Real evidence, presented plainly: no bordered app-chrome, no crossfading —
 // just the actual frames from a live property, large enough to read.
 export default function Evidence() {
   return (
-    <SectionReveal className="relative isolate mx-auto w-full max-w-6xl px-8 py-24 sm:px-12">
+    <SectionReveal id="evidence" className="relative isolate mx-auto w-full max-w-6xl px-8 py-24 sm:px-12">
       <div
         aria-hidden="true"
         data-reveal-item
@@ -24,8 +24,8 @@ export default function Evidence() {
         <RevealText text="This is a live property, running right now — not a mockup." />
       </h2>
 
-      <div data-reveal-item className="mt-12">
-        <CompareSlider
+      <div className="mt-12">
+        <EvidencePin
           beforeSrc="/landing/detect-frame.jpg"
           beforeAlt="A real daytime camera frame from a live property, with space occupancy detected and labeled"
           beforeLabel="Daytime — every space labeled"
@@ -33,7 +33,6 @@ export default function Evidence() {
           afterAlt="The same lot at night, with one space flagged as occupied past its allowed time"
           afterLabel="Night — a violation held long enough to confirm"
         />
-        <p className="mt-3 font-mono text-xs uppercase tracking-wider text-white/40">Drag to compare day and night</p>
       </div>
     </SectionReveal>
   );

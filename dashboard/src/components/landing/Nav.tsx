@@ -3,7 +3,7 @@ import GetStartedButton from "./GetStartedButton";
 const LINKS = [
   { label: "Product", href: "#product" },
   { label: "How It Works", href: "#how-it-works" },
-  { label: "About", href: "#about" },
+  { label: "Evidence", href: "#evidence" },
 ];
 
 export default function Nav() {

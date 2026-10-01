@@ -19,7 +19,8 @@ export default function CTASection() {
         <RevealText text="Let the lot watch itself." />
       </h2>
       <p data-reveal-item className="mt-5 text-white/60">
-        Mater automates the work between detection and dispatch.
+        Mater started as a way to watch one lot properly, without paying someone to patrol it — now it runs the
+        whole loop, from detection to dispatch, on cameras that already exist.
       </p>
       <div data-reveal-item className="mt-9 flex justify-center">
         <GetStartedButton className="w-fit font-semibold" />

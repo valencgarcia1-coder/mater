@@ -4,11 +4,8 @@ const COLUMNS = [
     links: [
       { label: "Product", href: "#product" },
       { label: "How It Works", href: "#how-it-works" },
+      { label: "Evidence", href: "#evidence" },
     ],
-  },
-  {
-    heading: "Company",
-    links: [{ label: "About", href: "#about" }],
   },
   {
     heading: "Account",
@@ -18,12 +15,13 @@ const COLUMNS = [
 
 // Only columns/links to pages that actually exist — no Resources, Legal, or
 // social row, since there's no blog, docs, terms/privacy pages, or social
-// accounts to point to yet. Add a column back once the thing it links to is
-// real, not before.
+// accounts to point to yet. No separate Company/About column either — the
+// mission line now lives inline in the closing section, not as its own
+// destination. Add a column back once the thing it links to is real.
 export default function Footer() {
   return (
     <footer className="mx-auto w-full max-w-6xl px-8 py-16 sm:px-12">
-      <div className="grid gap-10 sm:grid-cols-[1.5fr_1fr_1fr_1fr]">
+      <div className="grid gap-10 sm:grid-cols-[1.5fr_1fr_1fr]">
         <div>
           <div className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
