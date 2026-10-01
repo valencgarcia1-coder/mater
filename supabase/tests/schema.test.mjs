@@ -37,6 +37,14 @@ await db.exec(`
   $$;
   grant usage on schema storage to anon, authenticated, service_role;
   grant select, insert, update, delete on storage.buckets, storage.objects to anon, authenticated, service_role;
+
+  -- Minimal pg_net stub (just the one function the alert webhook trigger
+  -- calls) — no real HTTP happens in this harness, it only needs to not
+  -- blow up the insert that fires it.
+  create schema net;
+  create function net.http_post(url text, headers jsonb default '{}'::jsonb, body jsonb default '{}'::jsonb)
+    returns bigint language sql as $$ select 0::bigint $$;
+  grant usage on schema net to service_role;
 `);
 const migrationsDir = new URL("../migrations/", import.meta.url);
 for (const f of readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort())
