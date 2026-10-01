@@ -24,7 +24,9 @@ class EventLog:
         # is best-effort and must never block or fail the caller.
         self._sink = sink
 
-    def emit(self, space: str, zone: str, state: str, elapsed: float | None) -> dict:
+    def emit(
+        self, space: str, zone: str, state: str, elapsed: float | None, evidence_jpeg: bytes | None = None
+    ) -> dict:
         event = {
             "event": state.upper(),
             "space": space,
@@ -33,8 +35,10 @@ class EventLog:
             "stationary_duration": round(elapsed, 1) if elapsed is not None else None,
         }
         if self._path:
+            # The raw photo isn't worth bloating the local log with — it only
+            # ever travels to the sink, which uploads it to Storage.
             with open(self._path, "a") as f:
                 f.write(json.dumps(event) + "\n")
         if self._sink is not None:
-            self._sink.enqueue(event)
+            self._sink.enqueue(event, evidence_jpeg=evidence_jpeg)
         return event

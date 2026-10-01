@@ -42,6 +42,8 @@ import json
 import time
 from dataclasses import asdict, dataclass
 
+import cv2
+
 from detector.events import EventLog
 
 GRACE_PERIOD_SECONDS = 10  # how long a space can read empty before we call the vehicle gone
@@ -104,11 +106,16 @@ class ParkingTimers:
         self._events = EventLog(path=events_path, sink=event_sink)
         self._load()
 
-    def update(self, occupied: dict[str, str], now: float | None = None) -> dict[str, SpaceStatus]:
+    def update(self, occupied: dict[str, str], now: float | None = None, frame=None) -> dict[str, SpaceStatus]:
         """Call once per frame with {label: zone} for every space currently
         read as occupied. Returns {label: SpaceStatus} for those spaces — a
         space not in the result is EMPTY. Emits an event on every real state
-        transition (not every frame a state merely continues)."""
+        transition (not every frame a state merely continues).
+
+        `frame` is the current raw BGR frame (optional) — when a transition
+        lands on VIOLATION or TOW_ELIGIBLE, it's JPEG-encoded and attached to
+        that event as evidence. Passing it costs nothing on every other
+        frame/transition; it's only touched at the moment it's needed."""
         now = now if now is not None else time.time()
         result: dict[str, SpaceStatus] = {}
 
@@ -126,7 +133,7 @@ class ParkingTimers:
             elapsed = (now - s.started_at) if s.started_at is not None else None
             state = _classify(elapsed, rules)
             result[label] = SpaceStatus(state=state, elapsed=elapsed, zone=zone)
-            self._maybe_emit(label, zone, state, elapsed)
+            self._maybe_emit(label, zone, state, elapsed, frame=frame)
 
         stale = [
             label for label, s in self._state.items()
@@ -139,11 +146,16 @@ class ParkingTimers:
         self._save()
         return result
 
-    def _maybe_emit(self, label: str, zone: str, state: str, elapsed: float | None) -> None:
+    def _maybe_emit(self, label: str, zone: str, state: str, elapsed: float | None, frame=None) -> None:
         if self._last_emitted_state.get(label) == state:
             return
         self._last_emitted_state[label] = state
-        self._events.emit(space=label, zone=zone, state=state, elapsed=elapsed)
+        evidence_jpeg = None
+        if frame is not None and state in (SpaceState.VIOLATION, SpaceState.TOW_ELIGIBLE):
+            ok, buf = cv2.imencode(".jpg", frame)
+            if ok:
+                evidence_jpeg = buf.tobytes()
+        self._events.emit(space=label, zone=zone, state=state, elapsed=elapsed, evidence_jpeg=evidence_jpeg)
 
     def _load(self) -> None:
         if not self._state_path:

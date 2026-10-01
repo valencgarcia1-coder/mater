@@ -285,7 +285,7 @@ class DetectionPipeline:
             occupancy = self.occupancy_debouncer.update(occupancy)
             zones = zone_by_label(self._cached_spaces)
             occupied_zones = {label: zones[label] for label, occ in occupancy.items() if occ}
-            status_by_label = self.parking_timers.update(occupied_zones)
+            status_by_label = self.parking_timers.update(occupied_zones, frame=frame)
             # Exposed for anything outside the annotated video frame that
             # needs structured space state (e.g. a dashboard's API) — this
             # data previously only existed baked into pixels.

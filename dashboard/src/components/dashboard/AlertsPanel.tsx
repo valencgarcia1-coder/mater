@@ -9,6 +9,7 @@ type Alert = {
   kind: "violation" | "tow_eligible";
   status: "open" | "acknowledged";
   created_at: string;
+  evidence_path: string | null;
   spaces: { label: string; zone: string } | null;
   properties: { name: string } | null;
 };
@@ -37,12 +38,13 @@ export default function AlertsPanel({ propertyId }: { propertyId?: string } = {}
   const [canReview, setCanReview] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [evidenceUrls, setEvidenceUrls] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     if (!supabase) return;
     let query = supabase
       .from("alerts")
-      .select("id, kind, status, created_at, spaces(label, zone), properties(name)")
+      .select("id, kind, status, created_at, evidence_path, spaces(label, zone), properties(name)")
       .in("status", ["open", "acknowledged"])
       .order("created_at", { ascending: false });
     if (propertyId) query = query.eq("property_id", propertyId);
@@ -70,6 +72,28 @@ export default function AlertsPanel({ propertyId }: { propertyId?: string } = {}
       void client.removeChannel(channel);
     };
   }, [supabase, load]);
+
+  // Evidence lives in a private bucket, so each photo needs its own signed
+  // URL (scoped by the same property-membership check as everything else) —
+  // fetched lazily per alert instead of baked into the initial select.
+  useEffect(() => {
+    if (!supabase || !alerts) return;
+    const client = supabase;
+    const missing = alerts
+      .map((a) => a.evidence_path)
+      .filter((path): path is string => !!path && !(path in evidenceUrls));
+    if (missing.length === 0) return;
+    void (async () => {
+      const entries = await Promise.all(
+        missing.map(async (path) => {
+          const { data } = await client.storage.from("evidence").createSignedUrl(path, 3600);
+          return [path, data?.signedUrl ?? ""] as const;
+        }),
+      );
+      const fresh = Object.fromEntries(entries.filter(([, signedUrl]) => signedUrl));
+      if (Object.keys(fresh).length > 0) setEvidenceUrls((prev) => ({ ...prev, ...fresh }));
+    })();
+  }, [supabase, alerts, evidenceUrls]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -122,6 +146,22 @@ export default function AlertsPanel({ propertyId }: { propertyId?: string } = {}
                 <span className="font-mono text-[10px] text-white/30">{formatTime(a.created_at)}</span>
               </div>
               {a.properties?.name && <p className="mt-1 text-xs font-light text-white/40">{a.properties.name}</p>}
+
+              {a.evidence_path && evidenceUrls[a.evidence_path] && (
+                <a
+                  href={evidenceUrls[a.evidence_path]}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 block overflow-hidden rounded-lg border border-white/10"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={evidenceUrls[a.evidence_path]}
+                    alt={`Evidence for space ${a.spaces?.label ?? "?"}`}
+                    className="h-28 w-full object-cover"
+                  />
+                </a>
+              )}
 
               {a.status === "acknowledged" && (
                 <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-white/40">Acknowledged</p>

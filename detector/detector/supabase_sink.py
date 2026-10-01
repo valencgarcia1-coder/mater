@@ -27,6 +27,7 @@ import httpx
 log = logging.getLogger(__name__)
 
 RETRY_DELAYS = (1, 2, 4, 8, 16)
+EVIDENCE_BUCKET = "evidence"
 
 
 class SupabaseEventSink:
@@ -40,6 +41,7 @@ class SupabaseEventSink:
         retry_delays: tuple[float, ...] = RETRY_DELAYS,
     ) -> None:
         self._rpc_base = f"{url.rstrip('/')}/rest/v1/rpc"
+        self._storage_base = f"{url.rstrip('/')}/storage/v1"
         self._headers = {"apikey": service_key, "Content-Type": "application/json"}
         # Legacy service_role keys are JWTs and go in Authorization too; the
         # newer sb_secret_* keys aren't JWTs and must only be sent as apikey.
@@ -48,7 +50,7 @@ class SupabaseEventSink:
         self._camera_id = camera_id
         self._retry_delays = retry_delays
         self._client = httpx.Client(timeout=timeout)
-        self._queue: queue.Queue[tuple[str, dict]] = queue.Queue(maxsize=max_queue)
+        self._queue: queue.Queue[tuple[str, dict, bytes | None, str | None]] = queue.Queue(maxsize=max_queue)
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
@@ -61,17 +63,23 @@ class SupabaseEventSink:
             os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"], os.environ["SUPABASE_CAMERA_ID"]
         )
 
-    def enqueue(self, event: dict) -> None:
+    def enqueue(self, event: dict, evidence_jpeg: bytes | None = None) -> None:
         """Called from the frame loop: must return immediately."""
-        self._put("record_space_event", {
+        occurred_at = datetime.now(timezone.utc).isoformat()
+        payload = {
             "p_camera_id": self._camera_id,
             "p_label": str(event["space"]),
             "p_state": str(event["event"]).lower(),
             "p_elapsed": event.get("stationary_duration"),
             # Events are emitted the moment the transition happens, so now() is
             # the occurrence time; sent as UTC so it's unambiguous in the DB.
-            "p_occurred_at": datetime.now(timezone.utc).isoformat(),
-        })
+            "p_occurred_at": occurred_at,
+        }
+        evidence_path = None
+        if evidence_jpeg is not None:
+            safe_ts = occurred_at.replace(":", "-")
+            evidence_path = f"{self._camera_id}/{payload['p_label']}/{payload['p_state']}-{safe_ts}.jpg"
+        self._put("record_space_event", payload, evidence_jpeg=evidence_jpeg, evidence_path=evidence_path)
 
     def enqueue_status(self, statuses: dict[str, dict]) -> None:
         """Snapshot of every space's current state ({label: {state, elapsed}}),
@@ -86,8 +94,8 @@ class SupabaseEventSink:
             ],
         })
 
-    def _put(self, rpc: str, payload: dict) -> None:
-        item = (rpc, payload)
+    def _put(self, rpc: str, payload: dict, evidence_jpeg: bytes | None = None, evidence_path: str | None = None) -> None:
+        item = (rpc, payload, evidence_jpeg, evidence_path)
         try:
             self._queue.put_nowait(item)
         except queue.Full:
@@ -112,15 +120,22 @@ class SupabaseEventSink:
 
     def _run(self) -> None:
         while True:
-            rpc, payload = self._queue.get()
+            rpc, payload, evidence_jpeg, evidence_path = self._queue.get()
             try:
-                self._send(rpc, payload)
+                self._send(rpc, payload, evidence_jpeg, evidence_path)
             except Exception:
                 log.exception("supabase sink: unexpected error, dropping event")
             finally:
                 self._queue.task_done()
 
-    def _send(self, rpc: str, payload: dict) -> None:
+    def _send(
+        self, rpc: str, payload: dict, evidence_jpeg: bytes | None = None, evidence_path: str | None = None
+    ) -> None:
+        if evidence_jpeg is not None and evidence_path is not None:
+            # A failed photo upload should never cost the underlying event —
+            # the alert still matters even without a picture attached.
+            if self._upload_evidence(evidence_path, evidence_jpeg):
+                payload = {**payload, "p_evidence_path": evidence_path}
         for attempt in range(len(self._retry_delays) + 1):
             try:
                 resp = self._client.post(f"{self._rpc_base}/{rpc}", headers=self._headers, json=payload)
@@ -139,3 +154,19 @@ class SupabaseEventSink:
                 time.sleep(self._retry_delays[attempt])
             else:
                 log.error("supabase sink: giving up on %s after retries (%s)", rpc, error)
+
+    def _upload_evidence(self, path: str, jpeg: bytes) -> bool:
+        """Best-effort, no retries — by the time this would retry, the RPC
+        below is already waiting, and a stale photo three retries later isn't
+        worth delaying the actual event for."""
+        url = f"{self._storage_base}/object/{EVIDENCE_BUCKET}/{path}"
+        headers = {**self._headers, "Content-Type": "image/jpeg", "x-upsert": "true"}
+        try:
+            resp = self._client.post(url, headers=headers, content=jpeg)
+        except httpx.HTTPError as e:
+            log.warning("evidence upload failed (network): %s", e)
+            return False
+        if resp.status_code >= 300:
+            log.warning("evidence upload rejected (%s): %s", resp.status_code, resp.text[:200])
+            return False
+        return True

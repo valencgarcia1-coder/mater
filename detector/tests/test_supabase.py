@@ -22,8 +22,9 @@ class FakeSupabase:
     """Records requests; `script` is a list of status codes to return in order
     for the RPC endpoint (default 200), and `delay` slows every response."""
 
-    def __init__(self, script=None, delay=0.0):
+    def __init__(self, script=None, delay=0.0, storage_script=None):
         self.requests, self.script, self.delay = [], list(script or []), delay
+        self.storage_script = list(storage_script or [])
         self.tables = {"properties": [], "cameras": [], "spaces": []}
         fake = self
 
@@ -42,8 +43,12 @@ class FakeSupabase:
                 if fake.delay:
                     time.sleep(fake.delay)
                 raw = self.rfile.read(int(self.headers.get("Content-Length", 0)))
-                body = json.loads(raw) if raw else None
                 url = urlparse(self.path)
+                if "/storage/v1/object/" in url.path:
+                    fake.requests.append({"path": url.path, "query": parse_qs(url.query), "headers": dict(self.headers), "body": raw})
+                    code = fake.storage_script.pop(0) if fake.storage_script else 200
+                    return self._reply(code, {} if code < 300 else {"message": "nope"})
+                body = json.loads(raw) if raw else None
                 fake.requests.append({"path": url.path, "query": parse_qs(url.query), "headers": dict(self.headers), "body": body})
                 if "/rpc/" in url.path:
                     code = fake.script.pop(0) if fake.script else 200
@@ -74,6 +79,9 @@ class FakeSupabase:
 
     def rpc(self, name="record_space_event"):
         return [r for r in self.requests if r["path"].endswith(f"/rpc/{name}")]
+
+    def storage_requests(self):
+        return [r for r in self.requests if "/storage/v1/object/" in r["path"]]
 
     def close(self):
         self.server.shutdown()
@@ -166,6 +174,37 @@ class SinkTests(unittest.TestCase):
         self.assertTrue(sink.flush())
         order = [r["path"].rsplit("/", 1)[-1] for r in fake.requests]
         self.assertEqual(order, ["record_space_event", "sync_space_status"])
+
+    def test_evidence_is_uploaded_and_attached_to_the_event(self):
+        fake = FakeSupabase(); self.addCleanup(fake.close)
+        sink = self.make(fake)
+        sink.enqueue(EVENT, evidence_jpeg=b"\xff\xd8fake-jpeg-bytes")
+        self.assertTrue(sink.flush())
+        uploads = fake.storage_requests()
+        self.assertEqual(len(uploads), 1)
+        self.assertIn("evidence/cam-1/7/violation-", uploads[0]["path"])
+        self.assertEqual(uploads[0]["body"], b"\xff\xd8fake-jpeg-bytes")
+        self.assertEqual(uploads[0]["headers"]["Content-Type"], "image/jpeg")
+        req = fake.rpc()[0]
+        self.assertIn("p_evidence_path", req["body"])
+        self.assertTrue(req["body"]["p_evidence_path"].startswith("cam-1/7/violation-"))
+
+    def test_event_without_evidence_never_touches_storage(self):
+        fake = FakeSupabase(); self.addCleanup(fake.close)
+        sink = self.make(fake)
+        sink.enqueue(EVENT)
+        self.assertTrue(sink.flush())
+        self.assertEqual(fake.storage_requests(), [])
+        self.assertNotIn("p_evidence_path", fake.rpc()[0]["body"])
+
+    def test_failed_evidence_upload_does_not_block_the_event(self):
+        fake = FakeSupabase(storage_script=[500]); self.addCleanup(fake.close)
+        sink = self.make(fake)
+        sink.enqueue(EVENT, evidence_jpeg=b"\xff\xd8fake-jpeg-bytes")
+        self.assertTrue(sink.flush())
+        self.assertEqual(len(fake.storage_requests()), 1)  # it tried
+        req = fake.rpc()[0]
+        self.assertNotIn("p_evidence_path", req["body"])  # but didn't claim a photo that isn't there
 
     def test_from_env_requires_all_variables(self):
         for k in ("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_CAMERA_ID"):

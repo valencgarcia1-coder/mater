@@ -16,6 +16,27 @@ await db.exec(`
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
   grant usage on schema public, auth to anon, authenticated, service_role;
+
+  -- Minimal Storage stub (buckets/objects/foldername) — just enough for the
+  -- evidence-capture migration's bucket + object policies to apply and be
+  -- exercised; the real schema is Supabase's own and isn't tested here.
+  create schema storage;
+  create table storage.buckets (id text primary key, name text not null, public boolean not null default false);
+  create table storage.objects (
+    id uuid primary key default gen_random_uuid(),
+    bucket_id text references storage.buckets(id),
+    name text,
+    owner uuid,
+    created_at timestamptz not null default now()
+  );
+  alter table storage.objects enable row level security;
+  create function storage.foldername(name text) returns text[] language sql immutable as $$
+    select case when array_length(string_to_array(name, '/'), 1) > 1
+      then (string_to_array(name, '/'))[1 : array_length(string_to_array(name, '/'), 1) - 1]
+      else '{}'::text[] end
+  $$;
+  grant usage on schema storage to anon, authenticated, service_role;
+  grant select, insert, update, delete on storage.buckets, storage.objects to anon, authenticated, service_role;
 `);
 const migrationsDir = new URL("../migrations/", import.meta.url);
 for (const f of readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort())
@@ -85,6 +106,29 @@ ok("repeat violation doesn't duplicate the live alert", (await db.query(`select 
 await rec("7", "tow_eligible", 361);
 ok("tow_eligible raises its own alert", (await db.query(`select count(*)::int n from alerts where kind='tow_eligible'`)).rows[0].n === 1);
 ok("status is a single row per space", (await db.query(`select count(*)::int n from space_status`)).rows[0].n === 1);
+
+// evidence: a photo taken at the moment of the transition rides the event onto the alert it raises
+await as(A);
+const S12 = (await db.query(`insert into spaces (camera_id,label,polygon) values ($1,'12',$2::jsonb) returning id`, [C, poly])).rows[0].id;
+await as(null, "service_role");
+const evPath = `${C}/12/violation-1.jpg`;
+const recEv = (label, state, el, path) => tryQ(`select record_space_event($1,$2,$3,$4,now(),$5) id`, [C, label, state, el, path]);
+await recEv("12", "violation", 65, evPath);
+const ev = (await db.query(`select evidence_path from space_events where space_id=$1 order by id desc limit 1`, [S12])).rows[0];
+ok("event stores its evidence_path", ev.evidence_path === evPath);
+const al2 = (await db.query(`select evidence_path from alerts where space_id=$1 and kind='violation'`, [S12])).rows[0];
+ok("alert raised from the event carries the same evidence_path", al2.evidence_path === evPath);
+ok("record_space_event still works with no evidence (backward compatible)", !!(await recEv("12", "tow_eligible", 361, null)).rows);
+
+// evidence photos are scoped like everything else: by camera -> property
+await db.query(`insert into storage.objects (bucket_id,name) values ('evidence',$1)`, [evPath]);
+await as(V);
+ok("property member can read their property's evidence", (await db.query(`select count(*)::int n from storage.objects where name=$1`, [evPath])).rows[0].n === 1);
+await as(X);
+ok("outsider can't read someone else's evidence", (await db.query(`select count(*)::int n from storage.objects where name=$1`, [evPath])).rows[0].n === 0);
+ok("authenticated user can't upload evidence directly", !!(await tryQ(`insert into storage.objects (bucket_id,name) values ('evidence','x/y/z.jpg')`)).err);
+await as(null, "service_role");
+await recEv("12", "empty", null, null);  // resolve space 12's alerts so later global counts aren't affected by this block
 
 // review flow
 await as(V);
