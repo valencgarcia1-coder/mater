@@ -12,6 +12,14 @@ type RevealTextProps = {
   text: string;
   className?: string;
   as?: "span";
+  /**
+   * When true, this component only renders the masked `[data-word]` markup
+   * and sets up no animation of its own — a parent (PinnedSection) owns the
+   * initial state and the scroll-scrubbed reveal instead. Use this for any
+   * RevealText nested inside a PinnedSection, otherwise the two animations
+   * fight each other.
+   */
+  scrubbed?: boolean;
 };
 
 /**
@@ -20,10 +28,11 @@ type RevealTextProps = {
  * Use only for headings that are plain strings (no nested markup) — the
  * split happens on `text`, not on children.
  */
-export default function RevealText({ text, className }: RevealTextProps) {
+export default function RevealText({ text, className, scrubbed = false }: RevealTextProps) {
   const ref = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
+    if (scrubbed) return;
     const el = ref.current;
     if (!el) return;
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -51,7 +60,7 @@ export default function RevealText({ text, className }: RevealTextProps) {
       tween.scrollTrigger?.kill();
       tween.kill();
     };
-  }, [text]);
+  }, [text, scrubbed]);
 
   return (
     <span ref={ref} className={className}>

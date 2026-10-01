@@ -8,9 +8,10 @@ if (typeof window !== "undefined") {
   gsap.registerPlugin(ScrollTrigger);
 }
 
-// A thin line that fills left-to-right as its parent section scrolls
-// through the viewport — ties the four steps together as one continuous
-// process instead of four disconnected cards.
+// A thin line that fills left-to-right as its parent PinnedSection's outer
+// (scroll-runway) element scrolls through "top top" to "bottom bottom" —
+// the exact same range that drives the pin itself, so the line finishes
+// filling in lockstep with the section's own release, not on its own clock.
 export default function ProgressTrack({ sectionRef }: { sectionRef: React.RefObject<HTMLDivElement | null> }) {
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -31,8 +32,8 @@ export default function ProgressTrack({ sectionRef }: { sectionRef: React.RefObj
       ease: "none",
       scrollTrigger: {
         trigger: section,
-        start: "top 70%",
-        end: "bottom 60%",
+        start: "top top",
+        end: "bottom bottom",
         scrub: 0.4,
       },
     });

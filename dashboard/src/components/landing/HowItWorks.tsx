@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import SectionReveal from "./SectionReveal";
+import PinnedSection from "./PinnedSection";
 import RevealText from "./RevealText";
 import ProgressTrack from "./ProgressTrack";
 
@@ -59,17 +59,20 @@ const STEPS = [
   },
 ];
 
-// A plain static flow diagram, not a scroll-driven demo — the pattern this
+// A plain static flow diagram, not a crossfading demo — the pattern this
 // market's real products actually use (see PLACA.AI's "Your Gate → AI Layer
-// → Automated Access"). One pass, no scroll-jacking.
+// → Automated Access"). Pinned like every other beat on the page: the
+// progress line is driven by the same scroll range as the pin itself, so it
+// finishes exactly as the section releases.
 export default function HowItWorks() {
-  const sectionRef = useRef<HTMLDivElement>(null);
+  const outerRef = useRef<HTMLDivElement>(null);
 
   return (
-    <SectionReveal
+    <PinnedSection
       id="how-it-works"
-      ref={sectionRef}
-      className="relative isolate mx-auto w-full max-w-6xl px-8 py-24 sm:px-12"
+      ref={outerRef}
+      runwayVh={170}
+      className="relative isolate mx-auto w-full max-w-6xl px-8 py-12 sm:px-12"
     >
       <div
         aria-hidden="true"
@@ -84,17 +87,17 @@ export default function HowItWorks() {
       <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">
         How it works
       </p>
-      <h2 className="mt-4 max-w-2xl font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
-        <RevealText text="From a parked car to a dispatched tow — with a person deciding at every step." />
+      <h2 className="mt-3 max-w-2xl font-sans text-3xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
+        <RevealText scrubbed text="From a parked car to a dispatched tow — with a person deciding at every step." />
       </h2>
 
-      <div data-reveal-item className="mt-14">
-        <ProgressTrack sectionRef={sectionRef} />
+      <div data-reveal-item className="mt-8">
+        <ProgressTrack sectionRef={outerRef} />
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
         {STEPS.map((step, i) => (
-          <div key={step.label} data-reveal-item className="flex flex-col gap-4 bg-black p-7">
+          <div key={step.label} data-reveal-item className="flex flex-col gap-3 bg-black p-5">
             <div className="flex items-center justify-between">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-emerald-400">
                 {step.icon}
@@ -106,6 +109,6 @@ export default function HowItWorks() {
           </div>
         ))}
       </div>
-    </SectionReveal>
+    </PinnedSection>
   );
 }

@@ -1,4 +1,4 @@
-import SectionReveal from "./SectionReveal";
+import PinnedSection from "./PinnedSection";
 import RevealText from "./RevealText";
 import Counter from "./Counter";
 
@@ -14,7 +14,10 @@ const TRUST = [
 // on the page otherwise.
 export default function Intro() {
   return (
-    <SectionReveal className="relative isolate mx-auto w-full max-w-4xl px-8 pt-32 pb-20 text-center sm:px-12">
+    <PinnedSection
+      runwayVh={150}
+      className="relative isolate mx-auto w-full max-w-4xl px-8 pt-32 pb-20 text-center sm:px-12"
+    >
       <div
         aria-hidden="true"
         data-reveal-item
@@ -22,13 +25,10 @@ export default function Intro() {
       >
         <div className="landing-glow h-full w-full rounded-full bg-emerald-400/15 blur-[95px]" />
       </div>
-      <h2
-        data-reveal-item
-        className="font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl"
-      >
-        <RevealText text="Manual patrols miss violations. Automatic tows create liability." />
+      <h2 className="font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
+        <RevealText scrubbed text="Manual patrols miss violations. Automatic tows create liability." />
         <br className="hidden sm:block" />
-        <RevealText text="Mater does neither." className="text-white/50" />
+        <RevealText scrubbed text="Mater does neither." className="text-white/50" />
       </h2>
 
       <div className="mt-14 grid gap-8 border-t border-white/10 pt-10 sm:grid-cols-3">
@@ -45,6 +45,6 @@ export default function Intro() {
           </div>
         ))}
       </div>
-    </SectionReveal>
+    </PinnedSection>
   );
 }

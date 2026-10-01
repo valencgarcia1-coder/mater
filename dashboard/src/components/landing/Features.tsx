@@ -1,4 +1,4 @@
-import SectionReveal from "./SectionReveal";
+import PinnedSection from "./PinnedSection";
 import RevealText from "./RevealText";
 import TiltCard from "./TiltCard";
 
@@ -86,7 +86,11 @@ const AUDIENCES = [
 
 export default function Features() {
   return (
-    <SectionReveal className="relative isolate mx-auto w-full max-w-6xl px-8 py-28 sm:px-12" id="product">
+    <PinnedSection
+      runwayVh={190}
+      id="product"
+      className="relative isolate mx-auto w-full max-w-6xl px-8 py-12 sm:px-12"
+    >
       <div
         aria-hidden="true"
         data-reveal-item
@@ -110,36 +114,36 @@ export default function Features() {
       <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">
         Product
       </p>
-      <h2 className="mt-4 font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
-        <RevealText text="One system for the entire parking operation." />
+      <h2 className="mt-3 font-sans text-3xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
+        <RevealText scrubbed text="One system for the entire parking operation." />
       </h2>
-      <div className="mt-14 grid gap-4 border-t border-neutral-900 pt-10 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-8 grid gap-3 border-t border-neutral-900 pt-6 sm:grid-cols-2 lg:grid-cols-3">
         {ITEMS.map((item) => (
           <TiltCard
             key={item.name}
             data-reveal-item
-            className={`flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-6 ${
-              item.big ? "sm:col-span-2 lg:col-span-2 lg:row-span-2 lg:justify-center" : ""
+            className={`flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-4 ${
+              item.big ? "sm:col-span-2 lg:col-span-2" : ""
             }`}
           >
             <IconWrap>{item.icon}</IconWrap>
-            <h3 className={`font-medium text-white ${item.big ? "text-lg" : "text-sm"}`}>{item.name}</h3>
-            <p className={`text-white/50 ${item.big ? "max-w-sm text-base" : "text-sm"}`}>{item.desc}</p>
+            <h3 className={`font-medium text-white ${item.big ? "text-base" : "text-sm"}`}>{item.name}</h3>
+            <p className={`text-white/50 ${item.big ? "max-w-sm text-sm" : "text-xs"}`}>{item.desc}</p>
           </TiltCard>
         ))}
       </div>
 
-      <div className="mt-16 grid gap-8 border-t border-white/10 pt-10 sm:grid-cols-3">
+      <div className="mt-8 grid gap-4 border-t border-white/10 pt-6 sm:grid-cols-3">
         <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/40 sm:col-span-3">
           Who it&apos;s for
         </p>
         {AUDIENCES.map((a) => (
-          <div key={a.name} data-reveal-item className="flex flex-col gap-2">
+          <div key={a.name} data-reveal-item className="flex flex-col gap-1">
             <h3 className="text-sm font-medium text-white">{a.name}</h3>
-            <p className="text-sm text-white/50">{a.desc}</p>
+            <p className="text-xs text-white/50">{a.desc}</p>
           </div>
         ))}
       </div>
-    </SectionReveal>
+    </PinnedSection>
   );
 }

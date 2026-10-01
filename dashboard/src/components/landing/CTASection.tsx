@@ -1,10 +1,14 @@
-import SectionReveal from "./SectionReveal";
+import PinnedSection from "./PinnedSection";
 import GetStartedButton from "./GetStartedButton";
 import RevealText from "./RevealText";
 
 export default function CTASection() {
   return (
-    <SectionReveal className="relative isolate mx-auto w-full max-w-3xl px-8 py-32 text-center sm:px-12" id="contact">
+    <PinnedSection
+      runwayVh={130}
+      id="contact"
+      className="relative isolate mx-auto w-full max-w-3xl px-8 py-20 text-center sm:px-12"
+    >
       <div
         aria-hidden="true"
         data-reveal-item
@@ -16,7 +20,7 @@ export default function CTASection() {
         />
       </div>
       <h2 className="font-sans text-5xl font-semibold leading-[1.1] tracking-tight text-white sm:text-6xl">
-        <RevealText text="Let the lot watch itself." />
+        <RevealText scrubbed text="Let the lot watch itself." />
       </h2>
       <p data-reveal-item className="mt-5 text-white/60">
         Mater started as a way to watch one lot properly, without paying someone to patrol it — now it runs the
@@ -25,6 +29,6 @@ export default function CTASection() {
       <div data-reveal-item className="mt-9 flex justify-center">
         <GetStartedButton className="w-fit font-semibold" />
       </div>
-    </SectionReveal>
+    </PinnedSection>
   );
 }
