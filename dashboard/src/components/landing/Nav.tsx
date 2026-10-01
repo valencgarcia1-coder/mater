@@ -17,7 +17,7 @@ export default function Nav() {
             <a
               key={label}
               href={href}
-              className="font-mono text-xs uppercase tracking-wider text-white/70 transition-colors hover:text-white"
+              className="font-mono text-xs uppercase tracking-wider text-white/78 transition-colors hover:text-white"
             >
               {label}
             </a>

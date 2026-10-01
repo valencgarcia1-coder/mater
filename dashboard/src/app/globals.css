@@ -2,9 +2,12 @@
 
 /* Mater's mark is monochrome (black circle, white line-art) — the ops
    dashboard follows that: always dark, no light-mode variant. This is an
-   operations tool, not a marketing site with a theme toggle. */
+   operations tool, not a marketing site with a theme toggle. Background is
+   a near-black rather than true #000 — pure black reads flat/void on most
+   displays; a hint of lift makes everything sitting on top of it (text,
+   glows, photos) read with more depth instead of floating in a void. */
 :root {
-  --background: #000000;
+  --background: #0a0a0c;
   --foreground: #f5f5f5;
 }
 

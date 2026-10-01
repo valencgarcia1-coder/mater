@@ -28,16 +28,16 @@ export default function Footer() {
             <img src="/mater-mark.svg" alt="" className="h-7 w-auto" />
             <span className="font-serif text-2xl italic font-medium tracking-tight text-white">Mater</span>
           </div>
-          <p className="mt-4 max-w-xs text-sm text-white/50">
+          <p className="mt-4 max-w-xs text-sm text-white/65">
             Camera-based detection and human-reviewed enforcement for private parking lots.
           </p>
         </div>
         {COLUMNS.map((col) => (
           <div key={col.heading}>
-            <h3 className="font-mono text-xs uppercase tracking-wider text-white/40">{col.heading}</h3>
+            <h3 className="font-mono text-xs uppercase tracking-wider text-white/55">{col.heading}</h3>
             <nav className="mt-4 flex flex-col gap-3">
               {col.links.map(({ label, href }) => (
-                <a key={label} href={href} className="text-sm text-white/60 transition-colors hover:text-white">
+                <a key={label} href={href} className="text-sm text-white/72 transition-colors hover:text-white">
                   {label}
                 </a>
               ))}
@@ -46,11 +46,11 @@ export default function Footer() {
         ))}
       </div>
 
-      <div className="mt-14 flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <p className="font-mono text-xs uppercase tracking-wider text-white/30">
+      <div className="mt-14 flex flex-col gap-3 border-t border-white/15 pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <p className="font-mono text-xs uppercase tracking-wider text-white/45">
           © 2026 Mater. All rights reserved.
         </p>
-        <p className="font-mono text-xs uppercase tracking-wider text-white/30">AI-powered towing infrastructure</p>
+        <p className="font-mono text-xs uppercase tracking-wider text-white/45">AI-powered towing infrastructure</p>
       </div>
     </footer>
   );

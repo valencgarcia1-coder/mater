@@ -80,11 +80,11 @@ export default function HowItWorks() {
         className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[340px] w-[700px] -translate-x-1/2 -translate-y-1/3"
       >
         <div
-          className="landing-glow h-full w-full rounded-full bg-emerald-400/15 blur-[95px]"
+          className="landing-glow h-full w-full rounded-full bg-emerald-400/20 blur-[95px]"
           style={{ animationDelay: "-13s" }}
         />
       </div>
-      <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">
+      <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/55">
         How it works
       </p>
       <h2 className="mt-3 max-w-2xl font-sans text-3xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
@@ -95,17 +95,17 @@ export default function HowItWorks() {
         <ProgressTrack sectionRef={outerRef} />
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-white/15 bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
         {STEPS.map((step, i) => (
-          <div key={step.label} data-reveal-item className="flex flex-col gap-3 bg-black p-5">
+          <div key={step.label} data-reveal-item className="flex flex-col gap-3 bg-[#0a0a0c] p-5">
             <div className="flex items-center justify-between">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-emerald-400">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/15 bg-white/[0.06] text-emerald-400">
                 {step.icon}
               </div>
-              <span className="font-mono text-xs text-white/25">0{i + 1}</span>
+              <span className="font-mono text-xs text-white/40">0{i + 1}</span>
             </div>
             <h3 className="font-mono text-xs uppercase tracking-wider text-white">{step.label}</h3>
-            <p className="text-sm text-white/50">{step.desc}</p>
+            <p className="text-sm text-white/65">{step.desc}</p>
           </div>
         ))}
       </div>

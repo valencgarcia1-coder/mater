@@ -84,10 +84,10 @@ export default function CompareSlider({
         </div>
       </div>
 
-      <span className="pointer-events-none absolute bottom-3 left-3 rounded bg-black/55 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-white/70 backdrop-blur-sm">
+      <span className="pointer-events-none absolute bottom-3 left-3 rounded bg-black/55 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-white/78 backdrop-blur-sm">
         {beforeLabel}
       </span>
-      <span className="pointer-events-none absolute bottom-3 right-3 rounded bg-black/55 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-white/70 backdrop-blur-sm">
+      <span className="pointer-events-none absolute bottom-3 right-3 rounded bg-black/55 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-white/78 backdrop-blur-sm">
         {afterLabel}
       </span>
     </div>

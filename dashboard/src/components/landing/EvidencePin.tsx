@@ -99,10 +99,10 @@ export default function EvidencePin({
           aria-hidden="true"
           className="pointer-events-none absolute left-1/2 top-[18%] -z-10 h-[320px] w-[560px] -translate-x-1/2"
         >
-          <div className="landing-glow h-full w-full rounded-full bg-violet-400/12 blur-[90px]" />
+          <div className="landing-glow h-full w-full rounded-full bg-violet-400/18 blur-[90px]" />
         </div>
         <div className="w-full max-w-6xl">
-          <p className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">{eyebrow}</p>
+          <p className="font-mono text-xs uppercase tracking-[0.25em] text-white/55">{eyebrow}</p>
           <h2
             ref={headingRef}
             className="mt-4 max-w-2xl font-sans text-3xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl"
@@ -121,7 +121,7 @@ export default function EvidencePin({
               onChange={setPos}
               interactive={!locked}
             />
-            <p className="mt-3 text-center font-mono text-xs uppercase tracking-wider text-white/40">
+            <p className="mt-3 text-center font-mono text-xs uppercase tracking-wider text-white/55">
               {locked ? "Scroll to compare day and night" : "Drag to compare day and night"}
             </p>
           </div>

@@ -13,7 +13,7 @@ type Props = {
  */
 export default function GetStartedButton({ variant = "solid", size = "lg", className = "" }: Props) {
   const isSolid = variant === "solid";
-  const base = isSolid ? "bg-white text-black" : "border border-white/40 text-white";
+  const base = isSolid ? "bg-white text-black" : "border border-white/50 text-white";
   const fill = isSolid ? "bg-black" : "bg-white";
   const hoverText = isSolid ? "group-hover:text-white" : "group-hover:text-black";
   const padding = size === "lg" ? "px-6 py-3 text-xs" : "px-4 py-2 text-xs";

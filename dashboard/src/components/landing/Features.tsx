@@ -4,7 +4,7 @@ import TiltCard from "./TiltCard";
 
 function IconWrap({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-white/60">
+    <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/[0.06] text-white/72">
       {children}
     </div>
   );
@@ -97,7 +97,7 @@ export default function Features() {
         className="pointer-events-none absolute right-0 top-1/3 -z-10 h-[380px] w-[680px]"
       >
         <div
-          className="landing-glow h-full w-full rounded-full bg-sky-400/15 blur-[95px]"
+          className="landing-glow h-full w-full rounded-full bg-sky-400/20 blur-[95px]"
           style={{ animationDelay: "-9s" }}
         />
       </div>
@@ -107,11 +107,11 @@ export default function Features() {
         className="pointer-events-none absolute left-0 bottom-0 -z-10 h-[320px] w-[560px] translate-y-1/3"
       >
         <div
-          className="landing-glow h-full w-full rounded-full bg-violet-400/12 blur-[90px]"
+          className="landing-glow h-full w-full rounded-full bg-violet-400/18 blur-[90px]"
           style={{ animationDelay: "-16s" }}
         />
       </div>
-      <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">
+      <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/55">
         Product
       </p>
       <h2 className="mt-3 font-sans text-3xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
@@ -122,25 +122,25 @@ export default function Features() {
           <TiltCard
             key={item.name}
             data-reveal-item
-            className={`flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-4 ${
+            className={`flex flex-col gap-2 rounded-2xl border border-white/15 bg-white/[0.05] p-4 ${
               item.big ? "sm:col-span-2 lg:col-span-2" : ""
             }`}
           >
             <IconWrap>{item.icon}</IconWrap>
             <h3 className={`font-medium text-white ${item.big ? "text-base" : "text-sm"}`}>{item.name}</h3>
-            <p className={`text-white/50 ${item.big ? "max-w-sm text-sm" : "text-xs"}`}>{item.desc}</p>
+            <p className={`text-white/65 ${item.big ? "max-w-sm text-sm" : "text-xs"}`}>{item.desc}</p>
           </TiltCard>
         ))}
       </div>
 
-      <div className="mt-8 grid gap-4 border-t border-white/10 pt-6 sm:grid-cols-3">
-        <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/40 sm:col-span-3">
+      <div className="mt-8 grid gap-4 border-t border-white/15 pt-6 sm:grid-cols-3">
+        <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/55 sm:col-span-3">
           Who it&apos;s for
         </p>
         {AUDIENCES.map((a) => (
           <div key={a.name} data-reveal-item className="flex flex-col gap-1">
             <h3 className="text-sm font-medium text-white">{a.name}</h3>
-            <p className="text-xs text-white/50">{a.desc}</p>
+            <p className="text-xs text-white/65">{a.desc}</p>
           </div>
         ))}
       </div>
