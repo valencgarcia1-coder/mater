@@ -1,4 +1,5 @@
 import SectionReveal from "./SectionReveal";
+import RevealText from "./RevealText";
 
 const AUDIENCES = [
   {
@@ -31,11 +32,8 @@ export default function WhoItsFor() {
       <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">
         Who it&apos;s for
       </p>
-      <h2
-        data-reveal-item
-        className="mt-4 font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl"
-      >
-        Built for whoever&apos;s on the hook when a lot goes unenforced.
+      <h2 className="mt-4 font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
+        <RevealText text="Built for whoever's on the hook when a lot goes unenforced." />
       </h2>
       <div className="mt-12 grid gap-8 border-t border-white/10 pt-10 sm:grid-cols-3">
         {AUDIENCES.map((a) => (

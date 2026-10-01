@@ -15,7 +15,7 @@ import Footer from "@/components/landing/Footer";
 export default function LandingPage() {
   return (
     <div
-      className="landing-grid relative min-h-screen w-full overflow-x-hidden bg-black bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:64px_64px]"
+      className="landing-grid landing-noise relative min-h-screen w-full overflow-x-hidden bg-black bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:64px_64px]"
     >
       <Nav />
       <Hero />

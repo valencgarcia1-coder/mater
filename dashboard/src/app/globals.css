@@ -60,6 +60,21 @@ body {
   }
 }
 
+/* A faint film-grain layer over the whole landing page — without it, pure
+   black with soft color blobs reads flat on most displays; grain is why
+   dark award-site sites still feel like they have depth/texture. */
+.landing-noise::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.045;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
+}
+
 /* MapLibre's default chrome (zoom buttons, attribution, popups) is styled
    for a light page — restyle it to match the dashboard's always-dark theme.
    The map's own layers (land/water/labels) are styled directly in USMap.tsx

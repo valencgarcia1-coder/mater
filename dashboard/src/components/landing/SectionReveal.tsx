@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, type ReactNode } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
@@ -24,8 +24,12 @@ type SectionRevealProps = {
  * the whole section moving as one block — mark the repeated items in a grid
  * (cards, list rows) with that attribute to opt in.
  */
-export default function SectionReveal({ children, className, id }: SectionRevealProps) {
+const SectionReveal = forwardRef<HTMLDivElement, SectionRevealProps>(function SectionReveal(
+  { children, className, id },
+  forwardedRef,
+) {
   const rootRef = useRef<HTMLDivElement>(null);
+  useImperativeHandle(forwardedRef, () => rootRef.current as HTMLDivElement);
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -68,4 +72,6 @@ export default function SectionReveal({ children, className, id }: SectionReveal
       {children}
     </div>
   );
-}
+});
+
+export default SectionReveal;

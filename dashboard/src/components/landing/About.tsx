@@ -1,4 +1,5 @@
 import SectionReveal from "./SectionReveal";
+import RevealText from "./RevealText";
 
 export default function About() {
   return (
@@ -16,11 +17,8 @@ export default function About() {
       <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">
         About
       </p>
-      <h2
-        data-reveal-item
-        className="mt-4 font-sans text-3xl font-semibold leading-[1.15] tracking-tight text-white sm:text-4xl"
-      >
-        We think enforcement shouldn&apos;t require someone walking the lot.
+      <h2 className="mt-4 font-sans text-3xl font-semibold leading-[1.15] tracking-tight text-white sm:text-4xl">
+        <RevealText text="We think enforcement shouldn't require someone walking the lot." />
       </h2>
       <p data-reveal-item className="mx-auto mt-5 max-w-xl text-white/60">
         Mater started as a way to watch one parking lot properly — every space, every hour, without

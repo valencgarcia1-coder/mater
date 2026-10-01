@@ -1,4 +1,9 @@
+"use client";
+
+import { useRef } from "react";
 import SectionReveal from "./SectionReveal";
+import RevealText from "./RevealText";
+import ProgressTrack from "./ProgressTrack";
 
 const ICON_PROPS = { viewBox: "0 0 24 24", fill: "none", strokeWidth: 1.6, className: "h-5 w-5" } as const;
 
@@ -58,8 +63,14 @@ const STEPS = [
 // market's real products actually use (see PLACA.AI's "Your Gate → AI Layer
 // → Automated Access"). One pass, no scroll-jacking.
 export default function HowItWorks() {
+  const sectionRef = useRef<HTMLDivElement>(null);
+
   return (
-    <SectionReveal id="how-it-works" className="relative isolate mx-auto w-full max-w-6xl px-8 py-24 sm:px-12">
+    <SectionReveal
+      id="how-it-works"
+      ref={sectionRef}
+      className="relative isolate mx-auto w-full max-w-6xl px-8 py-24 sm:px-12"
+    >
       <div
         aria-hidden="true"
         data-reveal-item
@@ -73,14 +84,15 @@ export default function HowItWorks() {
       <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">
         How it works
       </p>
-      <h2
-        data-reveal-item
-        className="mt-4 max-w-2xl font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl"
-      >
-        From a parked car to a dispatched tow — with a person deciding at every step.
+      <h2 className="mt-4 max-w-2xl font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
+        <RevealText text="From a parked car to a dispatched tow — with a person deciding at every step." />
       </h2>
 
-      <div className="mt-14 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
+      <div data-reveal-item className="mt-14">
+        <ProgressTrack sectionRef={sectionRef} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
         {STEPS.map((step, i) => (
           <div key={step.label} data-reveal-item className="flex flex-col gap-4 bg-black p-7">
             <div className="flex items-center justify-between">

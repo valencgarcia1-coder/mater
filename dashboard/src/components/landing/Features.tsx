@@ -1,4 +1,6 @@
 import SectionReveal from "./SectionReveal";
+import RevealText from "./RevealText";
+import TiltCard from "./TiltCard";
 
 function IconWrap({ children }: { children: React.ReactNode }) {
   return (
@@ -13,7 +15,8 @@ const ICON_PROPS = { viewBox: "0 0 24 24", fill: "none", strokeWidth: 1.6, class
 const ITEMS = [
   {
     name: "Automated enforcement",
-    desc: "Identify vehicles violating configured rules.",
+    desc: "Identify vehicles violating configured rules, around the clock, without someone watching a monitor.",
+    big: true,
     icon: (
       <svg {...ICON_PROPS}>
         <path d="M12 3 2 20h20L12 3Z" stroke="currentColor" strokeLinejoin="round" />
@@ -92,19 +95,22 @@ export default function Features() {
       <p data-reveal-item className="font-mono text-xs uppercase tracking-[0.25em] text-white/40">
         Product
       </p>
-      <h2
-        data-reveal-item
-        className="mt-4 font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl"
-      >
-        One system for the entire parking operation.
+      <h2 className="mt-4 font-sans text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl">
+        <RevealText text="One system for the entire parking operation." />
       </h2>
-      <div className="mt-14 grid gap-10 border-t border-neutral-900 pt-10 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-14 grid gap-4 border-t border-neutral-900 pt-10 sm:grid-cols-2 lg:grid-cols-3">
         {ITEMS.map((item) => (
-          <div key={item.name} data-reveal-item className="flex flex-col gap-3">
+          <TiltCard
+            key={item.name}
+            data-reveal-item
+            className={`flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-6 ${
+              item.big ? "sm:col-span-2 lg:col-span-2 lg:row-span-2 lg:justify-center" : ""
+            }`}
+          >
             <IconWrap>{item.icon}</IconWrap>
-            <h3 className="text-sm font-medium text-white">{item.name}</h3>
-            <p className="text-sm text-white/50">{item.desc}</p>
-          </div>
+            <h3 className={`font-medium text-white ${item.big ? "text-lg" : "text-sm"}`}>{item.name}</h3>
+            <p className={`text-white/50 ${item.big ? "max-w-sm text-base" : "text-sm"}`}>{item.desc}</p>
+          </TiltCard>
         ))}
       </div>
     </SectionReveal>

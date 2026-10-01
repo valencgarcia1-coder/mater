@@ -1,5 +1,6 @@
 import SectionReveal from "./SectionReveal";
 import GetStartedButton from "./GetStartedButton";
+import RevealText from "./RevealText";
 
 export default function CTASection() {
   return (
@@ -14,11 +15,8 @@ export default function CTASection() {
           style={{ animationDelay: "-2s" }}
         />
       </div>
-      <h2
-        data-reveal-item
-        className="font-sans text-5xl font-semibold leading-[1.1] tracking-tight text-white sm:text-6xl"
-      >
-        Let the lot watch itself.
+      <h2 className="font-sans text-5xl font-semibold leading-[1.1] tracking-tight text-white sm:text-6xl">
+        <RevealText text="Let the lot watch itself." />
       </h2>
       <p data-reveal-item className="mt-5 text-white/60">
         Mater automates the work between detection and dispatch.
