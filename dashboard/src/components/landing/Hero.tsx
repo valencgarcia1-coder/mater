@@ -65,7 +65,7 @@ const STEPS = [
   },
 ];
 
-const SHRINK_TO = 44; // video column's flex-basis (%) once fully shrunk
+const SHRINK_TO = 62; // video column's flex-basis (%) once fully shrunk — stays a decent size
 
 /**
  * One continuous sequence, not two separate moments: the real hero video
@@ -139,11 +139,6 @@ export default function Hero() {
       stepsCol.style.opacity = String(shrinkP);
       chrome.style.opacity = String(shrinkP);
       frame.style.borderRadius = `${shrinkP * 14}px`;
-
-      const fullH = sticky.clientHeight;
-      const colWidth = videoCol.clientWidth || sticky.clientWidth;
-      const targetH = colWidth * (9 / 16);
-      frame.style.height = `${fullH - shrinkP * (fullH - targetH)}px`;
 
       const stepsP = Math.max(0, (p - 0.5) / 0.5);
       stepEls.forEach((el, i) => {
