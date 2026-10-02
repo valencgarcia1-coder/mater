@@ -2,15 +2,16 @@ import Nav from "@/components/landing/Nav";
 import Hero from "@/components/landing/Hero";
 import Intro from "@/components/landing/Intro";
 import Features from "@/components/landing/Features";
-import HowItWorks from "@/components/landing/HowItWorks";
 import Evidence from "@/components/landing/Evidence";
 import CTASection from "@/components/landing/CTASection";
 import Footer from "@/components/landing/Footer";
 
-// A single story, front to back: hook (Hero) → the industry problem (Intro)
-// → what we do (Features, now including who it's for) → how it solves it
-// (HowItWorks) → proof it's real (Evidence, pinned) → close (CTASection,
-// now carrying the mission line that used to be its own About section).
+// A single story, front to back: hook + how it solves it (Hero — the video
+// shrinks into a framed clip and the "how it works" steps fill in beside
+// it, one continuous pinned sequence, no second section) → the industry
+// problem (Intro) → what we do (Features, including who it's for) → proof
+// it's real (Evidence, pinned) → close (CTASection, carrying the mission
+// line that used to be its own About section).
 // Nav anchors match this order so jumping forward never scrolls backward.
 export default function LandingPage() {
   return (
@@ -21,7 +22,6 @@ export default function LandingPage() {
       <Hero />
       <Intro />
       <Features />
-      <HowItWorks />
       <Evidence />
       <CTASection />
       <Footer />

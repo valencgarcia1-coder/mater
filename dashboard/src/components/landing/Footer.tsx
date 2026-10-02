@@ -2,8 +2,8 @@ const COLUMNS = [
   {
     heading: "Product",
     links: [
-      { label: "Product", href: "#product" },
       { label: "How It Works", href: "#how-it-works" },
+      { label: "Product", href: "#product" },
       { label: "Evidence", href: "#evidence" },
     ],
   },
