@@ -53,7 +53,7 @@ type Item = {
 const ITEMS: Item[] = [
   { key: "overview", label: "Overview", href: "/dashboard" },
   { key: "properties", label: "Properties", href: "/dashboard/properties" },
-  { key: "reports", label: "Reports", href: "/dashboard/reports", soon: true },
+  { key: "reports", label: "Reports", href: "/dashboard/reports" },
   { key: "settings", label: "Settings", href: "/dashboard/settings" },
 ];
 
