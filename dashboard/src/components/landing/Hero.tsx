@@ -82,6 +82,7 @@ const SHRINK_TO = 62; // video column's flex-basis (%) once fully shrunk — sta
 export default function Hero() {
   const outerRef = useRef<HTMLDivElement>(null);
   const stickyRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
   const headlineRef = useRef<HTMLDivElement>(null);
   const tintRef = useRef<HTMLDivElement>(null);
   const videoColRef = useRef<HTMLDivElement>(null);
@@ -91,14 +92,14 @@ export default function Hero() {
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
   const stRef = useRef<ScrollTrigger | null>(null);
 
-  // Lazy-initialized (not decided in an effect after mount): the pinned
-  // desktop tree must never render-then-unmount on a narrow viewport. GSAP's
-  // pin wraps the pinned element in a spacer it inserts itself; if React
-  // unmounts that subtree before GSAP has undone the wrap, it crashes
-  // trying to remove a node from a parent that no longer matches.
-  const [narrow, setNarrow] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(max-width: 1023px)").matches : false,
-  );
+  // narrow must start false on both server and client's first render — same
+  // value either side, or React throws a hydration mismatch. The real value
+  // (which can differ on an actually-narrow device) is only known after
+  // mount, so it's applied in an effect, gated by `checked` so the pin
+  // (below) never gets created before the real value is in — see that
+  // effect's comment for why a create-then-immediately-unmount is a crash.
+  const [narrow, setNarrow] = useState(false);
+  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
@@ -108,22 +109,31 @@ export default function Hero() {
       stRef.current?.kill();
       stRef.current = null;
       setNarrow(mq.matches);
+      setChecked(true);
     };
+    update();
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
 
   useEffect(() => {
-    if (narrow) return;
+    // Wait for the real narrow value before ever creating the pin — on the
+    // very first mount `narrow` is still the SSR-matching `false` default,
+    // even on an actually-narrow device. Creating the pin on that stale
+    // value just to tear it down a tick later (once `checked` flips) is the
+    // same unmount-before-GSAP-unwraps crash this whole effect exists to
+    // avoid.
+    if (!checked || narrow) return;
     const outer = outerRef.current;
     const sticky = stickyRef.current;
+    const row = rowRef.current;
     const headline = headlineRef.current;
     const tint = tintRef.current;
     const videoCol = videoColRef.current;
     const frame = frameRef.current;
     const chrome = chromeRef.current;
     const stepsCol = stepsColRef.current;
-    if (!outer || !sticky || !headline || !tint || !videoCol || !frame || !chrome || !stepsCol) return;
+    if (!outer || !sticky || !row || !headline || !tint || !videoCol || !frame || !chrome || !stepsCol) return;
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const stepEls = stepRefs.current.filter((el): el is HTMLDivElement => el !== null);
 
@@ -134,6 +144,12 @@ export default function Hero() {
       tint.style.opacity = String(1 - headlineP);
 
       const shrinkP = Math.min(1, Math.max(0, (p - 0.12) / 0.33));
+      // Full-bleed at rest, same as the original hero — page margin only
+      // appears once the split starts, instead of pinching the video at
+      // rest with padding it never used to have.
+      const pad = shrinkP * 48;
+      row.style.paddingLeft = `${pad}px`;
+      row.style.paddingRight = `${pad}px`;
       videoCol.style.flexBasis = `${100 - shrinkP * (100 - SHRINK_TO)}%`;
       stepsCol.style.flexBasis = `${shrinkP * (100 - SHRINK_TO)}%`;
       stepsCol.style.opacity = String(shrinkP);
@@ -192,7 +208,7 @@ export default function Hero() {
       st.kill();
       if (stRef.current === st) stRef.current = null;
     };
-  }, [narrow]);
+  }, [narrow, checked]);
 
   if (narrow) {
     return (
@@ -252,7 +268,7 @@ export default function Hero() {
         id="how-it-works"
         className="relative isolate flex h-screen w-full flex-col justify-center overflow-hidden bg-black"
       >
-        <div className="flex h-full w-full items-center gap-10 px-8 sm:px-12">
+        <div ref={rowRef} className="flex h-full w-full items-center gap-10">
           <div ref={videoColRef} className="relative flex h-full min-w-0 items-center" style={{ flexBasis: "100%" }}>
             <div ref={frameRef} className="relative w-full overflow-hidden" style={{ height: "100%" }}>
               <HeroVisual />
